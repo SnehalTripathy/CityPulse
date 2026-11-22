@@ -128,3 +128,72 @@ def test_worldpop_exposure_supports_multiple_event_features(monkeypatch):
     assert captured["features"] == features
     assert captured["decay"] == "worldpop"
     assert captured["p"] == 1
+
+
+def test_worldpop_year_and_catchment_radius_validation_happens_before_requests(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("WorldPop request should not be made for invalid inputs")
+
+    monkeypatch.setattr("ingestion.worldpop.requests.post", fail_if_called)
+    with pytest.raises(ValueError):
+        fetch_population_context(12.0, 77.0, year=2031)
+    with pytest.raises(ValueError):
+        fetch_population_context(12.0, 77.0, year=2025.5)
+    with pytest.raises(ValueError):
+        fetch_population_context(12.0, 77.0, radii_km=(1, 3.5, 10))
+    with pytest.raises(ValueError):
+        fetch_population_raster(12.0, 77.0, year=2014)
+
+
+def test_worldpop_exposure_rejects_invalid_coordinates_and_feature_shapes(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("WorldPop request should not be made for invalid geometry")
+
+    monkeypatch.setattr("ingestion.worldpop.requests.post", fail_if_called)
+    with pytest.raises(ValueError):
+        fetch_worldpop_event_exposure(
+            {"type":"Point","coordinates":[181,12]}, 2
+        )
+    with pytest.raises(ValueError):
+        fetch_worldpop_event_exposure(
+            {"type":"Point","coordinates":[77,12]}, 2, year=2031
+        )
+    with pytest.raises(ValueError):
+        fetch_worldpop_event_exposure(
+            {}, 2, features={"type":"FeatureCollection","features":[{"type":"Feature","geometry":None}]}
+        )
+
+
+def test_worldpop_context_rejects_malformed_catchment_rings(monkeypatch):
+    def fake_post(url, json=None, **kwargs):
+        if url.endswith("/catchment"):
+            return JsonResponse({
+                "points":[{"id":"city-centre","rings":[
+                    {"from_km":0,"to_km":1,"population":-10,"cumulative":-10}
+                ]}]
+            })
+        return JsonResponse({
+            "area_km2":314,"total_population":1000,
+            "groups":[{"name":"under_5","population":100,"share":0.1}]
+        })
+
+    monkeypatch.setattr("ingestion.worldpop.requests.post", fake_post)
+    from ingestion.worldpop import WorldPopUnavailable
+
+    with pytest.raises(WorldPopUnavailable):
+        fetch_population_context(12.0, 77.0)
+
+
+def test_worldpop_exposure_rejects_invalid_service_population_result(monkeypatch):
+    def fake_post(url, json=None, **kwargs):
+        return JsonResponse({
+            "total":{"exposed_population":float("nan"),"population_within":1000}
+        })
+
+    monkeypatch.setattr("ingestion.worldpop.requests.post", fake_post)
+    from ingestion.worldpop import WorldPopUnavailable
+
+    with pytest.raises(WorldPopUnavailable):
+        fetch_worldpop_event_exposure(
+            {"type":"Point","coordinates":[77,12]}, 2
+        )
