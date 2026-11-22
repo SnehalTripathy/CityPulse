@@ -39,5 +39,5 @@ def test_walking_access_reports_missing_network_without_claiming_inaccessibility
     ])
     access, summary = calculate_walking_access_from_osm(12.0,77.0,greens,[])
     assert summary["status"] == "no_walkable_ways"
-    assert access.iloc[0]["walking_network_km"] is None
+    assert pd.isna(access.iloc[0]["walking_network_km"])
     assert access.iloc[0]["access_status"] == "No walkable network returned"
