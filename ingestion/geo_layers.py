@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+import math
 
 import pandas as pd
 import requests
@@ -55,8 +56,13 @@ out center tags {int(limit)};
             "longitude": float(lon),
             "osm_type": element.get("type"),
             "osm_id": element.get("id"),
+            "distance_km": 2 * 6371.0088 * math.asin(min(1.0, math.sqrt(
+                math.sin(math.radians(float(lat) - latitude) / 2) ** 2
+                + math.cos(math.radians(latitude)) * math.cos(math.radians(float(lat)))
+                * math.sin(math.radians(float(lon) - longitude) / 2) ** 2
+            ))),
         })
-    return pd.DataFrame(rows, columns=["name", "category", "latitude", "longitude", "osm_type", "osm_id"])
+    return pd.DataFrame(rows, columns=["name", "category", "latitude", "longitude", "distance_km", "osm_type", "osm_id"])
 
 
 def _fetch_wms_image(endpoint: str, layer: str, latitude: float, longitude: float, date_value: str, width: int = 720, height: int = 560) -> bytes:
