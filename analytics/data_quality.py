@@ -16,6 +16,7 @@ def summarize_air_quality(
     columns = [
         "parameter", "unit", "median_value", "min_value", "max_value",
         "station_count", "reading_count", "latest_utc", "age_hours", "freshness",
+        "future_timestamp_readings",
     ]
     if air.empty or not {"parameter", "value", "unit", "datetime_utc"}.issubset(air.columns):
         return pd.DataFrame(columns=columns)
@@ -40,8 +41,27 @@ def summarize_air_quality(
         station_column = "station"
 
     rows: list[dict] = []
+    future_limit = now + pd.Timedelta(minutes=15)
     for (parameter, unit), group in frame.groupby(["parameter", "unit"], dropna=False):
-        latest = group["datetime_utc"].max()
+        future_rows = group.loc[group["datetime_utc"] > future_limit]
+        valid_group = group.loc[group["datetime_utc"] <= future_limit].copy()
+        if valid_group.empty:
+            rows.append({
+                "parameter": str(parameter),
+                "unit": str(unit) if pd.notna(unit) else "Unspecified",
+                "median_value": None,
+                "min_value": None,
+                "max_value": None,
+                "station_count": 0,
+                "reading_count": 0,
+                "latest_utc": group["datetime_utc"].min(),
+                "age_hours": None,
+                "freshness": "Future timestamp",
+                "future_timestamp_readings": int(len(future_rows)),
+            })
+            continue
+
+        latest = valid_group["datetime_utc"].max()
         age_hours = max(0.0, (now - latest).total_seconds() / 3600.0)
         if age_hours <= 6:
             freshness = "Fresh"
@@ -52,14 +72,15 @@ def summarize_air_quality(
         rows.append({
             "parameter": str(parameter),
             "unit": str(unit) if pd.notna(unit) else "Unspecified",
-            "median_value": float(group["value"].median()),
-            "min_value": float(group["value"].min()),
-            "max_value": float(group["value"].max()),
-            "station_count": int(group[station_column].nunique(dropna=True)),
-            "reading_count": int(len(group)),
+            "median_value": float(valid_group["value"].median()),
+            "min_value": float(valid_group["value"].min()),
+            "max_value": float(valid_group["value"].max()),
+            "station_count": int(valid_group[station_column].nunique(dropna=True)),
+            "reading_count": int(len(valid_group)),
             "latest_utc": latest,
             "age_hours": round(age_hours, 1),
             "freshness": freshness,
+            "future_timestamp_readings": int(len(future_rows)),
         })
     return pd.DataFrame(rows, columns=columns).sort_values(
         ["parameter", "unit"], kind="stable"
