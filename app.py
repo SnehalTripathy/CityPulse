@@ -26,6 +26,7 @@ from ingestion.geo_layers import (
 from analytics.spatial_interpolation import interpolate_station_surface
 from ingestion.landsat_uhi import fetch_landsat_surface_temperature_analysis
 from analytics.urban_stress import calculate_urban_stress
+from analytics.scenario import build_scenario_weather
 from ml.anomaly import detect_recent_weather_anomaly
 from ml.forecasting import train_next_observation_model
 from utils.storage import ensure_data_dirs, load_observations, load_daily_observations
@@ -414,7 +415,7 @@ elif page == "Air Quality Intelligence":
         kpis[2].metric("Newest observation", f"{newest_age:.1f} h ago" if newest_age is not None else "Unavailable")
         if not air_summary.empty:
             st.markdown("### Pollutant summary")
-            st.caption("Median is calculated from the returned station readings for each pollutant and unit. This is not an official AQI.")
+            st.caption("Median is calculated from returned OpenAQ station readings for each pollutant and unit. These are pollutant concentrations, not AQI values. No official AQI feed is currently connected.")
             st.dataframe(
                 air_summary.style.format({
                     "median_value": "{:.2f}",
@@ -480,13 +481,16 @@ elif page == "Command Center":
             help="Project-specific environmental signal; not the official Indian AQI or a health advisory",
         )
         parts = st.columns(3)
-        parts[0].metric("Heat signal", f"{usi.get('heat_score', current_score):.0f}/100")
+        heat_score = usi.get("heat_score")
+        rain_score = usi.get("rain_score")
+        parts[0].metric("Heat signal", f"{heat_score:.0f}/100" if heat_score is not None else "Unavailable")
         parts[1].metric("Particulate signal", f"{usi['air_score']:.0f}/100" if usi.get("air_score") is not None else "Unavailable")
-        parts[2].metric("Rain signal", f"{usi.get('rain_score', 0):.0f}/100")
+        parts[2].metric("Rain signal", f"{rain_score:.0f}/100" if rain_score is not None else "Unavailable")
         if composite_value is None:
             st.caption(f"Composite index withheld: {usi.get('reason', 'Required data is not available.')}")
         else:
             st.caption("Experimental composite: 50% heat + 35% particulate signal + 15% rainfall. Based on available recent data within the 25 km search area.")
+        st.caption("Official AQI: not available from the currently connected feeds. The CityPulse Index is a separate experimental project signal, not an official AQI.")
         st.markdown("### Hourly outlook")
         hourly = get_forward_hours(weather, weather_current, 24)
         fig = px.line(hourly, x="time", y=["temperature_2m", "apparent_temperature"], markers=True,
@@ -1027,22 +1031,25 @@ elif page == "Scenario Simulator":
         delta_temp = st.slider("Apparent-temperature change (°C)", -2.0, 8.0, 2.0, 0.5)
         particulate_factor = st.slider("Particulate concentration multiplier", 0.5, 2.0, 1.0, 0.1)
         rainfall_factor = st.slider("Rainfall multiplier", 0.0, 2.0, 1.0, 0.1)
-        baseline = calculate_urban_stress(weather_current, air)
-        scenario_weather = dict(weather_current)
-        scenario_weather["apparent_temperature"] = float(scenario_weather.get("apparent_temperature", 30.0)) + delta_temp
-        scenario_weather["precipitation"] = float(scenario_weather.get("precipitation") or 0.0) * rainfall_factor
-        scenario_air = air.copy()
-        if not scenario_air.empty:
-            scenario_air["value"] = pd.to_numeric(scenario_air["value"], errors="coerce") * particulate_factor
-        projected = calculate_urban_stress(scenario_weather, scenario_air)
-        st.metric("Scenario temperature", f"{scenario_weather['apparent_temperature']:.1f} °C", f"{delta_temp:+.1f} °C")
-        left, right = st.columns(2)
-        left.metric("Baseline CityPulse Index", f"{baseline['index']:.1f}/100" if baseline.get("index") is not None else "Unavailable")
-        right.metric("Scenario CityPulse Index", f"{projected['index']:.1f}/100" if projected.get("index") is not None else "Unavailable")
-        if baseline.get("index") is None or projected.get("index") is None:
-            st.info("A composite scenario requires a recent PM2.5 or PM10 reading. The model will not invent missing air-quality data.")
+        scenario_weather, scenario_input_error = build_scenario_weather(
+            weather_current, delta_temp, rainfall_factor
+        )
+        if scenario_weather is None:
+            st.info(f"Scenario unavailable: {scenario_input_error} CityPulse will not substitute placeholder temperature or zero rainfall.")
         else:
-            st.caption(f"Change in project index: {projected['index'] - baseline['index']:+.1f} points. This is a sensitivity calculation using the documented heuristic, not a prediction of actual city conditions.")
+            baseline = calculate_urban_stress(weather_current, air)
+            scenario_air = air.copy()
+            if not scenario_air.empty:
+                scenario_air["value"] = pd.to_numeric(scenario_air["value"], errors="coerce") * particulate_factor
+            projected = calculate_urban_stress(scenario_weather, scenario_air)
+            st.metric("Scenario temperature", f"{scenario_weather['apparent_temperature']:.1f} °C", f"{delta_temp:+.1f} °C")
+            left, right = st.columns(2)
+            left.metric("Baseline CityPulse Index", f"{baseline['index']:.1f}/100" if baseline.get("index") is not None else "Unavailable")
+            right.metric("Scenario CityPulse Index", f"{projected['index']:.1f}/100" if projected.get("index") is not None else "Unavailable")
+            if baseline.get("index") is None or projected.get("index") is None:
+                st.info(f"The composite scenario is withheld: {projected.get('reason') or baseline.get('reason') or 'Required current measurements are unavailable.'}")
+            else:
+                st.caption(f"Change in project index: {projected['index'] - baseline['index']:+.1f} points. This is a sensitivity calculation using the documented heuristic, not a prediction of actual city conditions.")
     else:
         st.info("Current weather inputs are unavailable, so the scenario cannot be calculated.")
 
