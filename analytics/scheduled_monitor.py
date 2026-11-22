@@ -95,7 +95,7 @@ def deliver_scheduled_alert_batch(
         mark_notification(
             event["fingerprint"],
             "sent" if sent else "failed",
-            error,
+            "SMTP delivery failed; detailed error omitted from shared scheduled history.",
             path=state_path,
         )
     return "sent" if sent else "failed"
