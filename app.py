@@ -19,10 +19,7 @@ from analytics.comparison import build_city_comparison_record
 from analytics.trends import TREND_METRICS, build_city_trend_frame
 from analytics.zone_intelligence import build_zone_coverage, detect_observed_hotspot_clusters
 from analytics.zone_grid import build_zone_coverage_grid
-from ingestion.geo_layers import (
-    fetch_green_spaces, fetch_walking_park_access,
-    fetch_nasa_land_surface_temperature, fetch_esa_worldcover,
-)
+from ingestion.geo_layers import fetch_green_spaces, fetch_walking_park_access
 from analytics.spatial_interpolation import interpolate_station_surface
 from ingestion.landsat_uhi import fetch_landsat_surface_temperature_analysis
 from analytics.urban_stress import calculate_urban_stress
@@ -194,17 +191,9 @@ def load_green_spaces(lat: float, lon: float) -> pd.DataFrame:
 def load_walking_access(lat: float, lon: float, green: pd.DataFrame):
     return fetch_walking_park_access(lat, lon, green)
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def load_worldcover(lat: float, lon: float) -> bytes:
-    return fetch_esa_worldcover(lat, lon)
-
 @st.cache_data(ttl=604800, show_spinner=False)
 def load_landsat_analysis(lat: float, lon: float):
     return fetch_landsat_surface_temperature_analysis(lat, lon)
-
-@st.cache_data(ttl=43200, show_spinner=False)
-def load_land_surface_temperature(lat: float, lon: float):
-    return fetch_nasa_land_surface_temperature(lat, lon)
 
 def get_forward_hours(frame: pd.DataFrame, current: dict, count: int) -> pd.DataFrame:
     if frame.empty or "time" not in frame.columns:
@@ -1002,24 +991,7 @@ elif page == "Zone Intelligence":
         st.info("Enable the analysis to search for a recent clear Landsat scene. Processing is cached for seven days per city.")
 
     st.markdown("[USGS Landsat Collection 2 surface-temperature product](https://www.usgs.gov/landsat-missions/landsat-collection-2-surface-temperature) · [Microsoft Planetary Computer STAC catalog](https://planetarycomputer.microsoft.com/catalog/dataset/landsat-c2-l2)")
-    if st.checkbox("Show NASA MODIS daily temperature context image", value=False, key="zone_load_nasa_lst"):
-        try:
-            with st.spinner("Loading NASA MODIS context imagery…"):
-                lst_image, lst_date = load_land_surface_temperature(city["latitude"], city["longitude"])
-            st.image(lst_image, caption=f"NASA GIBS · MODIS Terra daytime surface temperature · {lst_date}", use_container_width=True)
-        except Exception as exc:
-            st.warning(f"NASA satellite context layer is temporarily unavailable: {exc}")
-
-    st.markdown("### Land-cover classification")
-    st.caption("ESA WorldCover 2021 at 10 m resolution. The classification is a dated reference layer, not a live vegetation monitor.")
-    if st.checkbox("Load ESA WorldCover 2021 layer", value=True, key="zone_load_worldcover"):
-        try:
-            with st.spinner("Loading ESA land-cover classification…"):
-                cover_image = load_worldcover(city["latitude"], city["longitude"])
-            st.image(cover_image, caption="ESA WorldCover 2021 · 10 m land-cover classification", use_container_width=True)
-            st.caption("Classes include tree cover, shrubland, grassland, cropland, built-up, bare/sparse vegetation, water, wetland, mangroves and moss/lichen. [Dataset access and attribution](https://esa-worldcover.org/en/data-access)")
-        except Exception as exc:
-            st.warning(f"ESA WorldCover layer is temporarily unavailable: {exc}")
+    st.caption("Green-space context is based on community-mapped OpenStreetMap features. Satellite land-cover overlays were removed because the external map proxy was unreliable.")
 elif page == "Scenario Simulator":
     st.subheader("Scenario simulator")
     st.caption("Explore a hypothetical sensitivity scenario. This changes selected inputs in the project heuristic; it is not a forecast.")
