@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import os
+from pathlib import Path
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -1795,7 +1796,24 @@ elif page == "Smart Alerts & Recommendations":
                 st.error(f"Could not clear alert history: {exc}")
     else:
         st.info("No threshold crossings have been recorded for this city.")
-    st.caption("Thresholds are saved per city at application level, not per authenticated user. Notifications are optional and go to the deployment administrator address. Rainfall triggers use the largest single preceding-hour accumulation, not a flood forecast.")
+    scheduled_state_path = Path("data/processed/scheduled_alert_state.sqlite3")
+    if scheduled_state_path.exists():
+        try:
+            scheduled_history = list_alert_history(city_name, path=scheduled_state_path)
+        except Exception as exc:
+            scheduled_history = pd.DataFrame()
+            st.warning(f"Could not load background-monitor history: {exc}")
+        if not scheduled_history.empty:
+            st.markdown("### Background monitor history")
+            st.caption("These events are collected by the scheduled GitHub Actions worker. The committed history file updates when its next run finishes.")
+            st.dataframe(scheduled_history, use_container_width=True, hide_index=True)
+            st.download_button(
+                "Export background monitor history CSV",
+                scheduled_history.to_csv(index=False).encode("utf-8"),
+                file_name=f"{city_name.lower().replace(' ','_')}_scheduled_alert_history.csv",
+                mime="text/csv",
+            )
+    st.caption("Thresholds in this dashboard are saved per city at application level, not per authenticated user. Scheduled monitoring uses deployment-wide thresholds configured as GitHub Actions variables (or product defaults). Email notifications are optional and go to the deployment administrator address. Rainfall triggers use the largest single preceding-hour accumulation, not a flood forecast.")
 
 else:
     st.subheader("Methodology & data notes")
