@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -9,6 +10,8 @@ import pandas as pd
 from config.cities import CITIES
 from ingestion.openaq_api import fetch_latest_measurements
 from ingestion.weather_api import fetch_forecast
+
+logger = logging.getLogger(__name__)
 
 WEATHER_PARAMETERS = {
     "temperature_2m": "°C",
@@ -40,7 +43,7 @@ def collect_snapshot(api_key: str | None = None) -> pd.DataFrame:
     rows: list[dict] = []
 
     weather = fetch_forecast(city["latitude"], city["longitude"])
-    current = weather.attrs.get("current", {})
+    current = weather.attrs.get("current", {}) or {}
     weather_time = _local_timestamp_to_utc(current.get("time"), city["timezone"])
     for parameter, unit in WEATHER_PARAMETERS.items():
         value = current.get(parameter)
@@ -61,7 +64,11 @@ def collect_snapshot(api_key: str | None = None) -> pd.DataFrame:
         })
 
     if api_key:
-        air = fetch_latest_measurements(city["latitude"], city["longitude"], api_key)
+        try:
+            air = fetch_latest_measurements(city["latitude"], city["longitude"], api_key)
+        except Exception as exc:
+            logger.warning("OpenAQ snapshot failed; retaining weather rows: %s", exc)
+            air = pd.DataFrame()
         for measurement in air.to_dict(orient="records"):
             stamp = measurement.get("datetime_utc")
             if stamp is not None and not pd.isna(stamp):
