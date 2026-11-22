@@ -19,6 +19,10 @@ def test_dem_analysis_finds_relative_low_gentle_terrain_without_claiming_flood_p
     assert summary["sample_points"] <= 1200
     assert "slope_degrees" in frame
     assert "topographic_position_m" in frame
+    assert "flow_accumulation_cells" in frame
+    assert "flow_accumulation_area_km2" in frame
+    assert frame["flow_accumulation_cells"].ge(1).all()
+    assert summary["maximum_d8_flow_accumulation_cells"] >= 1
     assert frame["terrain_class"].notna().all()
     assert summary["relative_low_gentle_cells"] > 0
 
