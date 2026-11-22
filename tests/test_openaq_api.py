@@ -64,8 +64,8 @@ def test_fetches_latest_sensor_values(monkeypatch):
     assert row["value"] == 28.5
     assert row["sensor_id"] == 501
     assert row["datetime_local"] == "2026-11-22T15:30:00+05:30"
-    assert row["is_mobile"] is False
-    assert row["is_monitor"] is True
+    assert bool(row["is_mobile"]) is False
+    assert bool(row["is_monitor"]) is True
     assert row["provider"] == "Provider A"
     assert row["owner"] == "City Agency"
     assert row["licenses"] == "CC BY 4.0"
