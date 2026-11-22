@@ -716,7 +716,7 @@ CITIES = {
 
 # Country selector groups; India is intentionally pinned first in the UI.
 COUNTRY_CITIES = {
-    "India": sorted([name for name, details in CITIES.items() if details["country"] == "India"]),
+    "India": [name for name, details in CITIES.items() if details["country"] == "India"],
     "Japan": sorted([name for name, details in CITIES.items() if details["country"] == "Japan"]),
     "China": sorted([name for name, details in CITIES.items() if details["country"] == "China"]),
     "United States": sorted([name for name, details in CITIES.items() if details["country"] == "United States"]),
