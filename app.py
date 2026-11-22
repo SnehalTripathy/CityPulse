@@ -68,6 +68,14 @@ def _streamlit_smtp_settings() -> dict:
     except Exception:
         secret_root, smtp_section = {}, {}
     settings = {}
+    nested_aliases = {
+        "CITYPULSE_SMTP_HOST": ("host", "SMTP_HOST"),
+        "CITYPULSE_SMTP_PORT": ("port", "SMTP_PORT"),
+        "CITYPULSE_SMTP_FROM": ("from_address", "SMTP_FROM"),
+        "CITYPULSE_ALERT_EMAIL": ("alert_email", "ALERT_EMAIL"),
+        "CITYPULSE_SMTP_USERNAME": ("username", "SMTP_USERNAME"),
+        "CITYPULSE_SMTP_PASSWORD": ("password", "SMTP_PASSWORD"),
+    }
     for name in setting_names:
         value = None
         try:
@@ -75,11 +83,13 @@ def _streamlit_smtp_settings() -> dict:
         except Exception:
             pass
         if value is None:
-            short_name = name.removeprefix("CITYPULSE_")
-            try:
-                value = smtp_section.get(name) or smtp_section.get(short_name)
-            except Exception:
-                pass
+            for alias in nested_aliases[name]:
+                try:
+                    value = smtp_section.get(alias)
+                except Exception:
+                    value = None
+                if value is not None:
+                    break
         if value is not None:
             settings[name] = str(value)
     return settings
