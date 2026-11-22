@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import io
 import os
 from datetime import datetime, timezone
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+import requests
 import streamlit as st
 
 from config.cities import CITIES, COUNTRY_CITIES
@@ -16,6 +19,8 @@ from analytics.comparison import build_city_comparison_record
 from analytics.trends import TREND_METRICS, build_city_trend_frame
 from analytics.zone_intelligence import build_zone_coverage, detect_observed_hotspot_clusters
 from ingestion.geo_layers import fetch_green_spaces, fetch_nasa_land_surface_temperature, fetch_esa_worldcover
+from analytics.spatial_interpolation import interpolate_station_surface
+from ingestion.landsat_uhi import fetch_landsat_surface_temperature_analysis
 from analytics.urban_stress import calculate_urban_stress
 from ml.anomaly import detect_recent_weather_anomaly
 from ml.forecasting import train_next_observation_model
@@ -30,9 +35,26 @@ st.set_page_config(
 
 ensure_data_dirs()
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_history() -> pd.DataFrame:
-    return load_observations()
+    """Load the shared archive, falling back to a local checked-out copy."""
+    local = load_observations()
+    archive_url = "https://raw.githubusercontent.com/SnehalTripathy/CityPulse/main/data/raw/observations.csv"
+    try:
+        response = requests.get(archive_url, timeout=(4, 25))
+        if response.status_code == 200 and response.content:
+            remote = pd.read_csv(io.BytesIO(response.content))
+            if not remote.empty:
+                if "datetime_utc" in remote.columns:
+                    remote["datetime_utc"] = pd.to_datetime(remote["datetime_utc"], errors="coerce", utc=True)
+                if "observed_at_utc" in remote.columns:
+                    remote["observed_at_utc"] = pd.to_datetime(remote["observed_at_utc"], errors="coerce", utc=True)
+                if "value" in remote.columns:
+                    remote["value"] = pd.to_numeric(remote["value"], errors="coerce")
+                return remote
+    except (requests.RequestException, OSError, pd.errors.ParserError, ValueError):
+        pass
+    return local
 
 history = load_history()
 all_history = history.copy()
@@ -145,6 +167,10 @@ def load_green_spaces(lat: float, lon: float) -> pd.DataFrame:
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_worldcover(lat: float, lon: float) -> bytes:
     return fetch_esa_worldcover(lat, lon)
+
+@st.cache_data(ttl=604800, show_spinner=False)
+def load_landsat_analysis(lat: float, lon: float):
+    return fetch_landsat_surface_temperature_analysis(lat, lon)
 
 @st.cache_data(ttl=43200, show_spinner=False)
 def load_land_surface_temperature(lat: float, lon: float):
