@@ -18,7 +18,11 @@ from analytics.data_quality import summarize_air_quality
 from analytics.comparison import build_city_comparison_record
 from analytics.trends import TREND_METRICS, build_city_trend_frame
 from analytics.zone_intelligence import build_zone_coverage, detect_observed_hotspot_clusters
-from ingestion.geo_layers import fetch_green_spaces, fetch_nasa_land_surface_temperature, fetch_esa_worldcover
+from analytics.zone_grid import build_zone_coverage_grid
+from ingestion.geo_layers import (
+    fetch_green_spaces, fetch_walking_park_access,
+    fetch_nasa_land_surface_temperature, fetch_esa_worldcover,
+)
 from analytics.spatial_interpolation import interpolate_station_surface
 from ingestion.landsat_uhi import fetch_landsat_surface_temperature_analysis
 from analytics.urban_stress import calculate_urban_stress
@@ -185,6 +189,10 @@ def load_air(lat: float, lon: float, key: str | None) -> pd.DataFrame:
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_green_spaces(lat: float, lon: float) -> pd.DataFrame:
     return fetch_green_spaces(lat, lon)
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_walking_access(lat: float, lon: float, green: pd.DataFrame):
+    return fetch_walking_park_access(lat, lon, green)
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_worldcover(lat: float, lon: float) -> bytes:
@@ -752,10 +760,53 @@ elif page == "Zone Intelligence":
             provenance = station_inventory[["station", "location_id", "provider", "owner", "licenses", "timezone"]]
             st.dataframe(provenance, use_container_width=True, hide_index=True)
         st.caption("Fresh ≤6 hours · Recent 6–48 hours · Stale >48 hours. These labels describe the newest provider timestamp per returned station, not instrument calibration. The map filter above is independent of this complete inventory.")
+    st.markdown("### Returned-station coverage grid")
+    coverage_grid = build_zone_coverage_grid(
+        occupied_cells, city["latitude"], city["longitude"], radius_km=25, grid_km=5
+    )
+    if not coverage_grid.empty:
+        coverage_grid["marker_size"] = coverage_grid["station_count"].clip(lower=1) * 2 + 7
+        coverage_fig = px.scatter_mapbox(
+            coverage_grid,
+            lat="latitude",
+            lon="longitude",
+            color="coverage_status",
+            size="marker_size",
+            size_max=18,
+            hover_data=["station_count", "station_names", "cell_centre_distance_km"],
+            color_discrete_map={
+                "Returned fixed station":"#39D5F6",
+                "No fixed station returned in sample":"#FB7185",
+            },
+            zoom=9,
+            height=430,
+            labels={"coverage_status":"Returned sample"},
+        )
+        coverage_fig.update_layout(
+            mapbox_style="carto-darkmatter",
+            mapbox_center={"lat":city["latitude"], "lon":city["longitude"]},
+            paper_bgcolor="#0B1220",
+            margin={"l":0, "r":0, "t":10, "b":0},
+            legend_title_text="OpenAQ sample",
+        )
+        st.plotly_chart(coverage_fig, use_container_width=True)
+        st.caption(
+            "Each marker is the centre of a 5 km grid cell within approximately 25 km of the selected city centre. "
+            "A pink/empty cell means no fixed station was returned in that cell by the current nearby-location response. "
+            "OpenAQ is queried for at most 12 nearby locations, so this is a returned-sample coverage view—not proof "
+            "that no station exists in an empty cell and not a city-boundary coverage assessment."
+        )
     if not occupied_cells.empty:
-        st.markdown("### Returned-station distribution")
-        st.dataframe(occupied_cells.rename(columns={"grid_x":"5 km grid X (local offset)", "grid_y":"5 km grid Y (local offset)", "station_count":"Stations in occupied cell", "station_names":"Returned stations"}), use_container_width=True, hide_index=True)
-        st.caption("Grid coordinates are relative to the selected city centre. Only occupied cells are listed; this is not a city-boundary coverage or interpolation map.")
+        st.markdown("#### Cells with returned fixed stations")
+        st.dataframe(
+            occupied_cells.rename(columns={
+                "grid_x":"5 km grid X (local offset)",
+                "grid_y":"5 km grid Y (local offset)",
+                "station_count":"Fixed stations in cell",
+                "station_names":"Returned stations",
+            }),
+            use_container_width=True, hide_index=True,
+        )
 
     st.markdown("### Observed pollution cluster screening")
     st.caption("Screens for a cluster of relatively elevated, recent fixed-station values: at least six fixed stations with the same pollutant/unit, each observed within six hours; high values must be in a multi-station group within 5 km.")
@@ -788,8 +839,42 @@ elif page == "Zone Intelligence":
         park_cols[1].metric("Within 1 km (straight-line)", f"{int((green_spaces['distance_km'] <= 1).sum()):,}")
         nearest_green = float(green_spaces["distance_km"].min()) if "distance_km" in green_spaces and not green_spaces.empty else None
         park_cols[2].metric("Nearest from city centre", f"{nearest_green:.2f} km" if nearest_green is not None else "Unavailable")
-        st.dataframe(green_spaces[["name", "category", "distance_km", "latitude", "longitude"]].sort_values(["distance_km", "name"]).style.format({"distance_km":"{:.2f}"}), use_container_width=True, hide_index=True)
-        st.caption("OpenStreetMap is community-mapped (© OpenStreetMap contributors). Distances are straight-line from the approximate city centre to mapped feature centres, not walking routes; listings are not a complete inventory of parks or tree cover. [Map data attribution](https://www.openstreetmap.org/copyright).")
+        st.dataframe(
+            green_spaces[["name", "category", "distance_km", "latitude", "longitude"]]
+            .sort_values(["distance_km", "name"])
+            .style.format({"distance_km":"{:.2f}"}),
+            use_container_width=True, hide_index=True,
+        )
+        st.caption("OpenStreetMap is community-mapped (© OpenStreetMap contributors). Straight-line distances are measured to mapped feature centres; they are not walking routes or verified entrances. [Map data attribution](https://www.openstreetmap.org/copyright).")
+        if st.checkbox("Estimate walk-network access to mapped green spaces", value=False, key="zone_walk_access"):
+            try:
+                with st.spinner("Calculating approximate walking-network access…"):
+                    walking_access, walking_summary = load_walking_access(
+                        city["latitude"], city["longitude"], green_spaces
+                    )
+                if walking_summary.get("status") == "ready":
+                    walk_cols = st.columns(3)
+                    walk_cols[0].metric("Parks with estimated walk route", f"{walking_summary['routed_green_spaces']:,}")
+                    walk_cols[1].metric("Walk-network nodes", f"{walking_summary['network_nodes']:,}")
+                    walk_cols[2].metric("Origin snap distance", f"{walking_summary['origin_snap_distance_m']:.0f} m")
+                    st.dataframe(
+                        walking_access.style.format({
+                            "straight_line_km":"{:.2f}",
+                            "walking_network_km":"{:.2f}",
+                            "estimated_walk_minutes":"{:.1f}",
+                            "park_snap_distance_m":"{:.0f}",
+                        }),
+                        use_container_width=True, hide_index=True,
+                    )
+                    st.caption(
+                        f"Walking time uses an assumed pace of {walking_summary['assumed_walking_speed_kmh']:.1f} km/h. "
+                        "The route endpoint is the nearest mapped walk-network node to a green-space feature centre, not a verified public entrance. "
+                        "This is a bounded OSM network sample, not a complete citywide pedestrian-accessibility assessment."
+                    )
+                else:
+                    st.info(f"Walking access could not be estimated from the returned network: {walking_summary.get('status')}.")
+            except Exception as exc:
+                st.warning(f"OpenStreetMap walking-network lookup is temporarily unavailable: {exc}")
 
     st.markdown("### Landsat surface-temperature contrast")
     st.caption("CityPulse searches recent Landsat Collection 2 Level-2 scenes, masks cloud/shadow/snow/fill/water pixels, applies the USGS temperature scale factor and compares measured thermal pixels.")
