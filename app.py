@@ -955,14 +955,14 @@ elif page == "Zone Intelligence":
                 geo, selected_parameter, selected_unit, freshness_hours=12,
                 minimum_stations=6, grid_spacing_km=1.0, maximum_nearest_station_km=3.0,
             )
-        fig = px.scatter_mapbox(
+        fig = px.scatter_map(
             map_data, lat="latitude", lon="longitude", color="value",
             hover_name="station",
             hover_data=[column for column in ["parameter", "value", "unit", "datetime_local", "datetime_utc", "distance_m", "is_mobile", "provider"] if column in map_data.columns],
             color_continuous_scale="Turbo", zoom=9, height=560,
         )
         if interpolation_status == "ready" and not interpolation_frame.empty:
-            fig.add_trace(go.Scattermapbox(
+            fig.add_trace(go.Scattermap(
                 lat=interpolation_frame["latitude"],
                 lon=interpolation_frame["longitude"],
                 mode="markers",
@@ -980,7 +980,7 @@ elif page == "Zone Intelligence":
                 text=[selected_unit] * len(interpolation_frame),
             ))
         if show_green and not green_spaces.empty:
-            fig.add_scattermapbox(
+            fig.add_scattermap(
                 lat=green_spaces["latitude"], lon=green_spaces["longitude"],
                 mode="markers", name="Mapped green spaces",
                 marker={"size":11, "color":"#7CDE8B", "opacity":0.9},
@@ -988,8 +988,8 @@ elif page == "Zone Intelligence":
                 hovertemplate="%{text}<extra>OpenStreetMap</extra>",
             )
         fig.update_layout(
-            mapbox_style="carto-darkmatter",
-            mapbox_center={"lat":city["latitude"], "lon":city["longitude"]},
+            map_style="carto-darkmatter",
+            map_center={"lat":city["latitude"], "lon":city["longitude"]},
             paper_bgcolor="#0B1220", margin={"l":0, "r":0, "t":10, "b":0},
             coloraxis_colorbar_title=f"{selected_parameter} ({selected_unit})",
             legend={"bgcolor":"rgba(11,18,32,.7)"},
@@ -1042,7 +1042,7 @@ elif page == "Zone Intelligence":
     )
     if not coverage_grid.empty:
         coverage_grid["marker_size"] = coverage_grid["station_count"].clip(lower=1) * 2 + 7
-        coverage_fig = px.scatter_mapbox(
+        coverage_fig = px.scatter_map(
             coverage_grid,
             lat="latitude",
             lon="longitude",
@@ -1059,8 +1059,8 @@ elif page == "Zone Intelligence":
             labels={"coverage_status":"Returned sample"},
         )
         coverage_fig.update_layout(
-            mapbox_style="carto-darkmatter",
-            mapbox_center={"lat":city["latitude"], "lon":city["longitude"]},
+            map_style="carto-darkmatter",
+            map_center={"lat":city["latitude"], "lon":city["longitude"]},
             paper_bgcolor="#0B1220",
             margin={"l":0, "r":0, "t":10, "b":0},
             legend_title_text="OpenAQ sample",
@@ -1194,7 +1194,7 @@ elif page == "Zone Intelligence":
                     map_hover = ["surface_class", "ndvi", "distance_km"]
                     if "st_uncertainty_k" in landsat_pixels.columns:
                         map_hover.append("st_uncertainty_k")
-                    lst_fig = px.scatter_mapbox(
+                    lst_fig = px.scatter_map(
                         landsat_pixels,
                         lat="latitude",
                         lon="longitude",
@@ -1209,8 +1209,8 @@ elif page == "Zone Intelligence":
                         },
                     )
                     lst_fig.update_layout(
-                        mapbox_style="carto-darkmatter",
-                        mapbox_center={"lat":city["latitude"], "lon":city["longitude"]},
+                        map_style="carto-darkmatter",
+                        map_center={"lat":city["latitude"], "lon":city["longitude"]},
                         paper_bgcolor="#0B1220",
                         margin={"l":0, "r":0, "t":10, "b":0},
                     )
@@ -1305,7 +1305,7 @@ elif page == "Zone Intelligence":
                     "Terrain map layer", list(terrain_layers), key="zone_terrain_layer"
                 )
                 terrain_column, terrain_label, terrain_midpoint = terrain_layers[selected_terrain_layer]
-                terrain_fig = px.scatter_mapbox(
+                terrain_fig = px.scatter_map(
                     terrain_frame,
                     lat="latitude", lon="longitude", color=terrain_column,
                     hover_data=[
@@ -1326,8 +1326,8 @@ elif page == "Zone Intelligence":
                 )
                 terrain_fig.update_traces(marker={"size":6, "opacity":0.78})
                 terrain_fig.update_layout(
-                    mapbox_style="carto-darkmatter",
-                    mapbox_center={"lat":city["latitude"], "lon":city["longitude"]},
+                    map_style="carto-darkmatter",
+                    map_center={"lat":city["latitude"], "lon":city["longitude"]},
                     paper_bgcolor="#0B1220", margin={"l":0, "r":0, "t":10, "b":0},
                 )
                 st.plotly_chart(terrain_fig, use_container_width=True)
@@ -1367,7 +1367,7 @@ elif page == "Zone Intelligence":
                 hydro_cols[0].metric("Mapped water features", f"{len(hydro_frame):,}")
                 hydro_cols[1].metric("Within 2 km", f"{int((hydro_frame['distance_km'] <= 2).sum()):,}")
                 hydro_cols[2].metric("Feature categories", f"{hydro_frame['category'].nunique():,}")
-                hydro_fig = px.scatter_mapbox(
+                hydro_fig = px.scatter_map(
                     hydro_frame, lat="latitude", lon="longitude",
                     color="category", hover_name="name",
                     hover_data=["distance_km", "osm_type", "osm_id"],
@@ -1375,8 +1375,8 @@ elif page == "Zone Intelligence":
                 )
                 hydro_fig.update_traces(marker={"size":9, "opacity":0.85})
                 hydro_fig.update_layout(
-                    mapbox_style="carto-darkmatter",
-                    mapbox_center={"lat":city["latitude"], "lon":city["longitude"]},
+                    map_style="carto-darkmatter",
+                    map_center={"lat":city["latitude"], "lon":city["longitude"]},
                     paper_bgcolor="#0B1220", margin={"l":0, "r":0, "t":10, "b":0},
                 )
                 st.plotly_chart(hydro_fig, use_container_width=True)
@@ -1552,7 +1552,7 @@ elif page == "Environmental Health & Exposure":
                 if population_grid.empty:
                     st.info("WorldPop returned no inhabited 1 km cells for this buffer.")
                 else:
-                    fig = px.scatter_mapbox(
+                    fig = px.scatter_map(
                         population_grid,
                         lat="latitude",
                         lon="longitude",
@@ -1566,8 +1566,8 @@ elif page == "Environmental Health & Exposure":
                         labels={"population_per_cell":"Estimated people per 1 km cell"},
                     )
                     fig.update_layout(
-                        mapbox_style="carto-darkmatter",
-                        mapbox_center={"lat":city["latitude"],"lon":city["longitude"]},
+                        map_style="carto-darkmatter",
+                        map_center={"lat":city["latitude"],"lon":city["longitude"]},
                         paper_bgcolor="#0B1220",
                         margin={"l":0,"r":0,"t":10,"b":0},
                     )
