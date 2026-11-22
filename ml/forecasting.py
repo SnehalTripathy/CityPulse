@@ -100,7 +100,7 @@ def train_next_observation_model(observations: pd.DataFrame) -> dict:
         "horizon_hours": HORIZON_HOURS,
         "model": "RandomForestRegressor",
         "target": "apparent_temperature",
-    }\n
+    }
 FORECAST_HORIZONS_HOURS = (24, 48, 72)
 MIN_HORIZON_PAIRS = 80
 MIN_TRAIN_PAIRS = 40
