@@ -60,6 +60,34 @@ def _connect(path: str | Path | None = None) -> sqlite3.Connection:
     return connection
 
 
+def _normalise_preferences(preferences: dict | None, *, strict: bool) -> dict:
+    values = {**DEFAULT_PREFERENCES, **(preferences if isinstance(preferences, dict) else {})}
+    cleaned = {}
+    for key in ("heat_c", "rainfall_mm", "pm25_ug_m3", "pm10_ug_m3"):
+        try:
+            value = float(values[key])
+        except (TypeError, ValueError):
+            value = float("nan")
+        if not pd.notna(value) or value < 0 or value == float("inf"):
+            if strict:
+                raise ValueError(f"Invalid alert threshold: {key}")
+            value = float(DEFAULT_PREFERENCES[key])
+        cleaned[key] = value
+
+    email_value = values.get("email_enabled", False)
+    if isinstance(email_value, bool):
+        cleaned["email_enabled"] = email_value
+    elif str(email_value).strip().lower() in {"1", "true", "yes", "on"}:
+        cleaned["email_enabled"] = True
+    elif str(email_value).strip().lower() in {"0", "false", "no", "off", ""}:
+        cleaned["email_enabled"] = False
+    elif strict:
+        raise ValueError("Invalid email_enabled preference; use a boolean value.")
+    else:
+        cleaned["email_enabled"] = False
+    return cleaned
+
+
 def load_city_preferences(city: str, path: str | Path | None = None) -> dict:
     with _connect(path) as connection:
         row = connection.execute(
@@ -71,19 +99,11 @@ def load_city_preferences(city: str, path: str | Path | None = None) -> dict:
         saved = json.loads(row["preferences_json"])
     except (TypeError, json.JSONDecodeError):
         saved = {}
-    return {**DEFAULT_PREFERENCES, **saved}
+    return _normalise_preferences(saved, strict=False)
 
 
 def save_city_preferences(city: str, preferences: dict, path: str | Path | None = None) -> dict:
-    allowed = set(DEFAULT_PREFERENCES)
-    cleaned = {key: value for key, value in preferences.items() if key in allowed}
-    merged = {**DEFAULT_PREFERENCES, **cleaned}
-    for key in ("heat_c", "rainfall_mm", "pm25_ug_m3", "pm10_ug_m3"):
-        value = float(merged[key])
-        if not pd.notna(value) or value < 0:
-            raise ValueError(f"Invalid alert threshold: {key}")
-        merged[key] = value
-    merged["email_enabled"] = bool(merged["email_enabled"])
+    merged = _normalise_preferences(preferences, strict=True)
     with _connect(path) as connection:
         connection.execute(
             """INSERT INTO city_preferences(city, preferences_json, updated_at_utc)
@@ -159,43 +179,79 @@ def mark_notification(fingerprint: str, status: str, error: str | None = None, p
         )
 
 
-def email_delivery_configured() -> bool:
+SMTP_SETTING_NAMES = (
+    "CITYPULSE_SMTP_HOST",
+    "CITYPULSE_SMTP_PORT",
+    "CITYPULSE_SMTP_FROM",
+    "CITYPULSE_ALERT_EMAIL",
+    "CITYPULSE_SMTP_USERNAME",
+    "CITYPULSE_SMTP_PASSWORD",
+)
+
+
+def _smtp_settings(config: dict | None = None) -> dict:
+    supplied = config if isinstance(config, dict) else {}
+    return {
+        name: supplied.get(name) or os.getenv(name)
+        for name in SMTP_SETTING_NAMES
+    }
+
+
+def email_delivery_configured(config: dict | None = None) -> bool:
+    """Check SMTP settings supplied by the app's secrets layer or environment."""
+    settings = _smtp_settings(config)
     required = ("CITYPULSE_SMTP_HOST", "CITYPULSE_SMTP_PORT", "CITYPULSE_SMTP_FROM", "CITYPULSE_ALERT_EMAIL")
-    return all(os.getenv(name) for name in required)
+    if not all(settings.get(name) for name in required):
+        return False
+    try:
+        port = int(settings["CITYPULSE_SMTP_PORT"])
+    except (TypeError, ValueError):
+        return False
+    if not 1 <= port <= 65535:
+        return False
+    # Partial authentication configuration is almost always a deployment error.
+    return bool(settings.get("CITYPULSE_SMTP_USERNAME")) == bool(settings.get("CITYPULSE_SMTP_PASSWORD"))
 
 
-def send_alert_email(city: str, alerts: list[dict]) -> tuple[bool, str | None]:
+def send_alert_email(
+    city: str,
+    alerts: list[dict],
+    config: dict | None = None,
+) -> tuple[bool, str | None]:
     """Send new alerts to the deployment owner's configured address; never stores recipient data."""
     if not alerts:
         return True, None
-    if not email_delivery_configured():
-        return False, "Email delivery is not configured by the deployment administrator."
-    message = EmailMessage()
-    message["Subject"] = f"CityPulse alert update — {city} ({len(alerts)} trigger(s))"
-    message["From"] = os.environ["CITYPULSE_SMTP_FROM"]
-    message["To"] = os.environ["CITYPULSE_ALERT_EMAIL"]
-    lines = [f"New CityPulse threshold trigger(s) for {city}:", ""]
-    for alert in alerts:
-        lines.extend([
-            f"{alert.get('Signal')}: {alert.get('Value')} (threshold {alert.get('Configured threshold')})",
-            f"Basis: {alert.get('Trigger basis')}",
-            f"Time: {alert.get('Time')}",
-            f"Source: {alert.get('Source and data type')}",
-            "",
-        ])
-    lines.append("These are configurable prototype triggers, not official warnings or health advice.")
-    message.set_content("\n".join(lines))
-    host = os.environ["CITYPULSE_SMTP_HOST"]
-    port = int(os.environ["CITYPULSE_SMTP_PORT"])
-    username = os.getenv("CITYPULSE_SMTP_USERNAME")
-    password = os.getenv("CITYPULSE_SMTP_PASSWORD")
+    settings = _smtp_settings(config)
+    if not email_delivery_configured(settings):
+        return False, "Email delivery is not configured correctly by the deployment administrator."
+    host = str(settings["CITYPULSE_SMTP_HOST"])
+    port = int(settings["CITYPULSE_SMTP_PORT"])
+    sender = str(settings["CITYPULSE_SMTP_FROM"])
+    recipient = str(settings["CITYPULSE_ALERT_EMAIL"])
+    username = settings.get("CITYPULSE_SMTP_USERNAME")
+    password = settings.get("CITYPULSE_SMTP_PASSWORD")
     try:
+        message = EmailMessage()
+        message["Subject"] = f"CityPulse alert update — {city} ({len(alerts)} trigger(s))"
+        message["From"] = sender
+        message["To"] = recipient
+        lines = [f"New CityPulse threshold trigger(s) for {city}:", ""]
+        for alert in alerts:
+            lines.extend([
+                f"{alert.get('Signal')}: {alert.get('Value')} (threshold {alert.get('Configured threshold')})",
+                f"Basis: {alert.get('Trigger basis')}",
+                f"Time: {alert.get('Time')}",
+                f"Source: {alert.get('Source and data type')}",
+                "",
+            ])
+        lines.append("These are configurable prototype triggers, not official warnings or health advice.")
+        message.set_content("\n".join(lines))
         with smtplib.SMTP(host, port, timeout=15) as server:
             server.ehlo()
             server.starttls()
             server.ehlo()
             if username:
-                server.login(username, password or "")
+                server.login(str(username), str(password))
             server.send_message(message)
         return True, None
     except (OSError, smtplib.SMTPException, ValueError) as exc:
