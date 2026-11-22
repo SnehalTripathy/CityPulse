@@ -95,6 +95,9 @@ def interpolate_station_surface(
         return "no_fresh_observations", empty, diagnostics
 
     station_key = "location_id" if "location_id" in selected.columns else "station"
+    if station_key == "location_id" and "station" in selected.columns:
+        selected["_station_key"] = selected["location_id"].where(selected["location_id"].notna(), selected["station"])
+        station_key = "_station_key"
     if station_key not in selected.columns:
         selected["_station"] = selected.index.astype(str)
         station_key = "_station"
