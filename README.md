@@ -1,121 +1,60 @@
-# CityPulse — Urban Stress Intelligence
+# CityPulse — Urban Stress Intelligence Platform
 
-**A Bengaluru-first urban environment monitoring and analytical platform.**
+**Explore environmental conditions and urban stress signals across major cities around the world.**
 
-CityPulse combines modelled weather conditions, nearby air-quality sensor readings, an experimental composite environmental signal, a scheduled observation archive and data-driven analytical modules in a dark Streamlit command centre.
+[**Open the live CityPulse dashboard →**](https://citypulse-101.streamlit.app/)
 
-## Architecture
+CityPulse is an interactive urban intelligence platform that brings together weather information, nearby air-quality observations and analytical tools in one place. Select a country and city to explore local environmental conditions, compare signals and investigate patterns.
 
-```mermaid
-flowchart TD
-    A[Open-Meteo forecast/current API] --> B[Ingestion layer]
-    C[OpenAQ locations + latest sensors] --> B
-    D[GitHub Actions every 3 hours] --> B
-    B --> E[data/raw/observations.csv]
-    E --> F[Feature engineering]
-    F --> G[Random Forest next-observation model]
-    F --> H[Isolation Forest anomaly detection]
-    B --> I[Streamlit dashboard]
-    E --> I
-    G --> I
-    H --> I
-    I --> J[Command Center / Analytics / Map / Scenarios]
-```
+## What you can explore
 
-## Current features
+- **City Command Center** — an at-a-glance view of current weather conditions, hourly outlook, nearby air-quality readings and the experimental CityPulse Index when sufficient data is available.
+- **Environmental Analytics** — explore weather forecasts and available historical weather and air-quality observations.
+- **Predictive Intelligence** — view experimental machine-learning estimates when enough historical observations are available and the model performs better than a simple baseline.
+- **Anomaly Detection** — identify unusual weather patterns relative to the platform's collected historical baseline.
+- **Zone Intelligence** — explore the locations of nearby air-quality monitoring stations on a map.
+- **Scenario Simulator** — adjust environmental assumptions and explore how they affect the project's experimental index.
+- **Methodology** — understand the data sources, index approach and current limitations.
 
-- **Command Center:** live modelled weather, hourly outlook, nearby OpenAQ readings and the experimental CityPulse Index when its required inputs are present.
-- **Environmental Analytics:** provider forecast plus archived weather and pollutant trends.
-- **Predictive Intelligence:** a Random Forest model for the next scheduled apparent-temperature observation, trained only after at least 80 valid time-ordered training pairs and evaluated against a persistence baseline.
-- **Anomaly Detection:** Isolation Forest over historical weather snapshots after at least 30 complete observations.
-- **Zone Intelligence:** maps actual geocoded OpenAQ monitoring stations; it does not invent neighbourhood-level readings.
-- **Scenario Simulator:** sensitivity analysis using adjustable temperature, particulate and rainfall assumptions.
-- **Methodology:** data coverage, formula notes and explicit limitations.
+## Global city coverage
 
-## Pilot and data sources
+CityPulse currently includes **32 countries and 236 city locations** across Asia, Europe, Africa, North America, South America and Oceania.
 
-- **Pilot city:** Bengaluru, Karnataka, India (12.9716° N, 77.5946° E)
-- **Weather:** [Open-Meteo Forecast API](https://open-meteo.com/en/docs)
-- **Air quality:** [OpenAQ API v3](https://docs.openaq.org/), authenticated with an `X-API-Key` header.
+Choose a country first, then select one of its available cities. India is pinned at the top of the country list, with its cities arranged alphabetically. Other countries and their cities are also listed alphabetically.
 
-Open-Meteo provides modelled weather conditions and forecasts. OpenAQ provides public sensor observations where available; coverage and recency vary by location and pollutant.
+Coverage includes India, Australia, Bangladesh, Brazil, Canada, China, Egypt, Finland, France, Iceland, Israel, Italy, Japan, the Maldives, Mexico, New Zealand, North Korea, Pakistan, Qatar, Russia, Saudi Arabia, South Africa, South Korea, Spain, Sri Lanka, Switzerland, Thailand, Turkey, the UAE, the United Kingdom, the United States and Zimbabwe.
 
-## Experimental CityPulse Index
+City locations use approximate city-centre coordinates. Weather and air-quality data availability varies by location.
 
-The initial project heuristic is:
+## Data sources
 
-```
-Index = 0.50 × Heat + 0.35 × Particulate + 0.15 × Rain
-```
+- **Weather:** [Open-Meteo](https://open-meteo.com/) — modelled current conditions and weather forecasts.
+- **Air quality:** [OpenAQ](https://openaq.org/) — observations reported by nearby monitoring stations.
 
-- Heat is scaled from apparent temperature 22–40 °C into a 0–100 signal.
-- Particulate is the higher of the citywide median PM2.5 and PM10 signals, normalized against 60 µg/m³ and 100 µg/m³ respectively.
-- Rain is scaled from 0–10 mm into a 0–100 signal.
-- PM readings older than 48 hours are excluded.
-- The composite is withheld when current weather or recent PM2.5/PM10 data is missing.
+The platform presents provider weather forecasts separately from its own experimental analytics. Air-quality station coverage, pollutants and observation recency vary between cities. A city appearing in the selector does not guarantee that nearby live air-quality readings are available.
 
-**This is not India's official AQI.** The CPCB National AQI uses pollutant-specific breakpoints and prescribed averaging periods; this prototype uses latest sensor readings as inputs to a separate project heuristic. Do not interpret the index as a health assessment, public warning or government rating. Reference: [CPCB — About National Air Quality Index](https://airquality.cpcb.gov.in/ccr_docs/About_AQI.pdf).
+## Understanding the CityPulse Index
 
-## Automated observation collection
+The CityPulse Index is an experimental project-level environmental signal combining:
 
-GitHub Actions runs `.github/workflows/data-collection.yml` every three hours and can also be started manually. It appends normalized, de-duplicated observations to `data/raw/observations.csv`.
+- Heat signal
+- Particulate matter signal (PM2.5 and PM10)
+- Rainfall signal
 
-Weather collection works without a key. OpenAQ collection requires a repository Actions secret:
+The current heuristic weights these components at 50%, 35% and 15%, respectively. The particulate component uses recent available readings, and the composite is withheld when required inputs are missing rather than filling gaps with invented values.
 
-1. Open **Settings → Secrets and variables → Actions**.
-2. Choose **New repository secret**.
-3. Set the name to `OPENAQ_API_KEY`.
-4. Paste your private, active OpenAQ key and save.
+**The CityPulse Index is not an official AQI, regulatory measurement, health assessment or public warning.** It is a prototype indicator intended for exploration. For official air-quality information, consult the relevant national or local environmental authority.
 
-Never commit a real key or put one in `.streamlit/secrets.toml.example`. The local `.streamlit/secrets.toml` file is ignored by Git.
+## Important notes
 
-## Run locally
+- Weather values are modelled grid-cell data, not street-level measurements.
+- Air-quality readings come from monitoring stations; coverage and reporting times are not uniform.
+- Historical records build over time as scheduled data collection runs. Newly added cities may not yet have sufficient history for trend analysis or machine-learning features.
+- Predictive and anomaly-detection features are experimental and are shown only when their data requirements are met.
+- CityPulse is an exploratory information platform, not an emergency-response or health-advice service.
 
-```bash
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -r requirements-dev.txt
-streamlit run app.py
-```
+## Project
 
-For local OpenAQ access, create `.streamlit/secrets.toml`:
+CityPulse is an evolving urban environmental intelligence project. Its aim is to make city-level environmental information easier to explore while clearly communicating data availability, uncertainty and the limits of experimental indicators.
 
-```toml
-OPENAQ_API_KEY = "your-private-key"
-```
-
-## Deploy on Streamlit Community Cloud
-
-1. Create a new app and select this repository: `SnehalTripathy/CityPulse`.
-2. Select branch `main`.
-3. Set **Main file path** to `app.py`.
-4. Select Python 3.11 if the version picker is shown.
-5. Under **Advanced settings → Secrets**, add:
-
-```toml
-OPENAQ_API_KEY = "your-private-key"
-```
-
-6. Deploy.
-
-## Quality checks
-
-GitHub Actions workflow `.github/workflows/ci.yml` compiles the Python modules and runs tests for the stress index, OpenAQ ingestion, observation storage and ML readiness.
-
-## Important limitations
-
-- City-level weather is modelled grid-cell data, not street-level sensor data.
-- OpenAQ latest values may be asynchronous and station coverage is not uniform.
-- The composite index is an experimental heuristic, not a regulatory AQI.
-- ML pages remain in baseline-building mode until enough collected observations exist.
-- The Random Forest prediction is an exploratory next-observation estimate, not a replacement for the Open-Meteo provider forecast.
-- GitHub-hosted CSV storage is a simple pilot archive. A larger multi-city deployment should move observations to a managed time-series database/object store.
-
-## Roadmap
-
-1. Add historical sensor aggregation and stronger source-quality checks.
-2. Evaluate a validated multi-dimensional urban stress index.
-3. Add model monitoring, drift checks and explainability.
-4. Expand to additional Indian cities after the Bengaluru pipeline is reliable.
-5. Add report exports and operational alerts.
+[**Launch CityPulse on Streamlit →**](https://citypulse-101.streamlit.app/)
