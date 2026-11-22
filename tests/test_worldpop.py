@@ -55,7 +55,6 @@ def test_population_context_parses_ring_counts_and_age_groups(monkeypatch):
             "data_source":"WorldPop Global2 R2025A, 100 m",
             "area_km2":314.0,
             "total_population":35000,
-            "population_density":111.5,
             "groups":[
                 {"name":"under_5","population":3500,"share":0.10},
                 {"name":"age_65_plus","population":2100,"share":0.06},
