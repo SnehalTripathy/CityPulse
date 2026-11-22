@@ -49,7 +49,7 @@ def load_history() -> pd.DataFrame:
     try:
         response = requests.get(archive_url, timeout=(4, 25))
         if response.status_code == 200 and response.content:
-            remote = pd.read_csv(io.BytesIO(response.content))
+            remote = pd.read_csv(io.BytesIO(response.content), compression="gzip")
             if not remote.empty:
                 if "datetime_utc" in remote.columns:
                     remote["datetime_utc"] = pd.to_datetime(remote["datetime_utc"], errors="coerce", utc=True)
@@ -65,7 +65,7 @@ def load_history() -> pd.DataFrame:
 @st.cache_data(ttl=600, show_spinner=False)
 def load_daily_history() -> pd.DataFrame:
     local = load_daily_observations()
-    archive_url = "https://raw.githubusercontent.com/SnehalTripathy/CityPulse/main/data/processed/daily_city_observations.csv"
+    archive_url = "https://raw.githubusercontent.com/SnehalTripathy/CityPulse/main/data/processed/daily_city_observations.csv.gz"
     try:
         response = requests.get(archive_url, timeout=(4, 25))
         if response.status_code == 200 and response.content:
