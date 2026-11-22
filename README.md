@@ -53,8 +53,3 @@ The current heuristic weights these components at 50%, 35% and 15%, respectively
 - Predictive and anomaly-detection features are experimental and are shown only when their data requirements are met.
 - CityPulse is an exploratory information platform, not an emergency-response or health-advice service.
 
-## Project
-
-CityPulse is an evolving urban environmental intelligence project. Its aim is to make city-level environmental information easier to explore while clearly communicating data availability, uncertainty and the limits of experimental indicators.
-
-[**Launch CityPulse on Streamlit →**](https://citypulse-101.streamlit.app/)
