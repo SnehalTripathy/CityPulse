@@ -68,3 +68,20 @@ def test_city_comparison_reports_timezone_and_fixed_mobile_coverage():
     assert result["Mobile sensors"] == 1
     assert result["PM2.5 (µg/m³)"] == 15
     assert result["PM2.5 stations"] == 2
+
+
+
+def test_comparison_suppresses_future_only_air_freshness_timestamp():
+    now = pd.Timestamp("2026-11-22T18:00:00Z")
+    air = pd.DataFrame([{
+        "parameter":"pm25","unit":"µg/m³","value":80,
+        "datetime_utc":"2026-11-23T05:00:00Z","location_id":1,
+        "is_mobile":False,
+    }])
+    result = build_city_comparison_record(
+        "Future City", {"time":"2026-11-22T18:00","timezone":"UTC"}, air, now=now
+    )
+    assert result["PM2.5 (µg/m³)"] is None
+    assert result["PM2.5 stations"] == 0
+    assert result["Latest air observation (UTC)"] is None
+    assert pd.isna(result["Air reading age (h)"])
