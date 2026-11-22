@@ -68,7 +68,7 @@ def build_city_trend_frame(
     frame["datetime_utc"] = pd.to_datetime(frame["datetime_utc"], errors="coerce", utc=True)
     frame = frame.dropna(subset=["value", "datetime_utc"])
     if "is_mobile" in frame.columns:
-        frame = frame.loc[~frame["is_mobile"].fillna(False).astype(bool)].copy()
+        frame = frame.loc[~frame["is_mobile"].map(lambda value: str(value).strip().lower() in {"true", "1", "yes", "y"})].copy()
     if frame.empty:
         return empty_trend, empty_coverage
 
