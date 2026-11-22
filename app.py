@@ -96,6 +96,8 @@ st.sidebar.markdown("## 🌆 CityPulse")
 st.sidebar.caption("URBAN STRESS INTELLIGENCE")
 city_name = st.sidebar.selectbox("Pilot city", list(CITIES.keys()), index=0)
 city = CITIES[city_name]
+if not history.empty and "city" in history.columns:
+    history = history.loc[history["city"] == city_name].copy()
 page = st.sidebar.radio(
     "Workspace",
     ["Command Center", "Environmental Analytics", "Predictive Intelligence", "Anomaly Detection", "Zone Intelligence", "Scenario Simulator", "Methodology"],
