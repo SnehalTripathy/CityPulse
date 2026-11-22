@@ -25,6 +25,7 @@ def test_green_space_parser_keeps_osm_source_fields(monkeypatch):
     assert len(result) == 2
     assert result.iloc[0]["name"] == "Central Park"
     assert result.iloc[1]["category"] == "forest"
+    assert result["distance_km"].min() > 0
 
 
 def test_nasa_layer_uses_requested_date(monkeypatch):
@@ -46,3 +47,24 @@ def test_nasa_layer_uses_requested_date(monkeypatch):
     assert image == b"png-data"
     assert selected == "2026-11-20"
     assert captured["layers"] == "MODIS_Terra_Land_Surface_Temp_Day"
+
+
+def test_worldcover_request_does_not_send_a_time_dimension(monkeypatch):
+    captured = {}
+
+    class ImageResponse:
+        headers = {"content-type": "image/png"}
+        content = b"cover-png"
+
+        def raise_for_status(self):
+            return None
+
+    def fake_get(endpoint, params=None, timeout=None):
+        captured.update(params)
+        return ImageResponse()
+
+    monkeypatch.setattr("ingestion.geo_layers.requests.get", fake_get)
+    from ingestion.geo_layers import fetch_esa_worldcover
+    assert fetch_esa_worldcover(12.0, 77.0) == b"cover-png"
+    assert captured["layers"] == "esa-worldcover-map-10m-2021-v2_map"
+    assert "time" not in captured
