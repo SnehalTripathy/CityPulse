@@ -39,7 +39,7 @@ jobs:
             git add data/raw/observations.csv
           fi
           if [ -f data/processed/daily_city_observations.csv.gz ]; then
-            git add data/processed/daily_city_observations.csv
+            git add data/processed/daily_city_observations.csv.gz
           fi
           if ! git diff --cached --quiet; then
             git commit -m "chore(data): collect environmental snapshot"
