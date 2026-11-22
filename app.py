@@ -11,6 +11,7 @@ from config.cities import CITIES, COUNTRY_CITIES
 from ingestion.weather_api import fetch_forecast
 from ingestion.openaq_api import fetch_latest_measurements
 from analytics.stress_index import add_weather_stress
+from analytics.data_quality import summarize_air_quality
 from analytics.urban_stress import calculate_urban_stress
 from ml.anomaly import detect_recent_weather_anomaly
 from ml.forecasting import train_next_observation_model
@@ -117,7 +118,7 @@ def _open_zone_intelligence():
 
 page = st.sidebar.radio(
     "Workspace",
-    ["Command Center", "Environmental Analytics", "Predictive Intelligence", "Anomaly Detection", "Zone Intelligence", "Scenario Simulator", "Methodology"],
+    ["Command Center", "City Comparison", "Air Quality Intelligence", "Environmental Analytics", "Predictive Intelligence", "Anomaly Detection", "Zone Intelligence", "Scenario Simulator", "Methodology"],
     key="workspace_page",
 )
 st.sidebar.divider()
@@ -188,6 +189,152 @@ with hero_action:
 st.markdown('<p class="subtle">See the city in colour — environmental signals, emerging patterns and experimental urban intelligence in one workspace.</p>', unsafe_allow_html=True)
 st.markdown('<div style="height:1px;background:linear-gradient(90deg,#39D5F6,#A78BFA,#FB7185,#F59E0B,#A3E635);opacity:.7;margin:1rem 0 1.35rem;border-radius:4px"></div>', unsafe_allow_html=True)
 
+elif page == "City Comparison":
+    st.subheader("City comparison")
+    st.caption("Compare up to three cities using the same live provider sources. Missing measurements remain blank; values are not imputed.")
+    comparison_cities = st.multiselect(
+        "Choose 2–3 cities",
+        options=sorted(CITIES.keys()),
+        default=[city_name],
+        max_selections=3,
+        key="comparison_cities",
+    )
+    if st.button("Run city comparison", type="primary", key="run_city_comparison"):
+        if len(comparison_cities) < 2:
+            st.warning("Select at least two cities to compare.")
+        else:
+            comparison_rows = []
+            comparison_errors = []
+            progress = st.progress(0, text="Fetching selected city conditions…")
+            for index, comparison_name in enumerate(comparison_cities):
+                comparison_city = CITIES[comparison_name]
+                try:
+                    if comparison_name == city_name:
+                        comparison_weather, comparison_air = weather, air
+                    else:
+                        comparison_weather = load_weather(
+                            comparison_city["latitude"],
+                            comparison_city["longitude"],
+                            comparison_city["timezone"],
+                        )
+                        comparison_air = load_air(
+                            comparison_city["latitude"],
+                            comparison_city["longitude"],
+                            api_key,
+                        )
+                    current = comparison_weather.attrs.get("current", {}) if not comparison_weather.empty else {}
+                    quality = summarize_air_quality(comparison_air)
+                    def _pollutant_median(summary, target):
+                        if summary.empty:
+                            return None
+                        tokens = summary["parameter"].astype(str).str.lower().str.replace(".", "", regex=False).str.replace("_", "", regex=False)
+                        matched = summary.loc[tokens.isin({target, target + "mass"})]
+                        matched = matched[matched["unit"].astype(str).str.lower().str.replace(" ", "", regex=False).isin({"µg/m³", "ug/m3", "µg/m3", "ug/m³"})]
+                        return float(matched["median_value"].median()) if not matched.empty else None
+                    stress = calculate_urban_stress(current, comparison_air) if current else {"index": None}
+                    stations = comparison_air["location_id"].nunique() if not comparison_air.empty and "location_id" in comparison_air.columns else (comparison_air["station"].nunique() if not comparison_air.empty and "station" in comparison_air.columns else 0)
+                    comparison_rows.append({
+                        "City": comparison_name,
+                        "Temperature (°C)": current.get("temperature_2m"),
+                        "Feels like (°C)": current.get("apparent_temperature"),
+                        "Humidity (%)": current.get("relative_humidity_2m"),
+                        "Rainfall (mm)": current.get("precipitation"),
+                        "PM2.5 (µg/m³)": _pollutant_median(quality, "pm25"),
+                        "PM10 (µg/m³)": _pollutant_median(quality, "pm10"),
+                        "CityPulse Index": stress.get("index"),
+                        "Monitoring stations": stations,
+                    })
+                except Exception as exc:
+                    comparison_errors.append(f"{comparison_name}: {exc}")
+                progress.progress((index + 1) / len(comparison_cities), text=f"Processed {comparison_name}")
+            progress.empty()
+            st.session_state["city_comparison_result"] = pd.DataFrame(comparison_rows)
+            st.session_state["city_comparison_errors"] = comparison_errors
+    comparison_result = st.session_state.get("city_comparison_result", pd.DataFrame())
+    if not comparison_result.empty:
+        st.markdown("### Comparison snapshot")
+        st.dataframe(
+            comparison_result.style.format({
+                "Temperature (°C)": "{:.1f}",
+                "Feels like (°C)": "{:.1f}",
+                "Humidity (%)": "{:.0f}",
+                "Rainfall (mm)": "{:.1f}",
+                "PM2.5 (µg/m³)": "{:.1f}",
+                "PM10 (µg/m³)": "{:.1f}",
+                "CityPulse Index": "{:.1f}",
+            }, na_rep="—"),
+            use_container_width=True,
+            hide_index=True,
+        )
+        temperature_chart = comparison_result.dropna(subset=["Temperature (°C)"])
+        if not temperature_chart.empty:
+            fig = px.bar(temperature_chart, x="City", y=["Temperature (°C)", "Feels like (°C)"], barmode="group", template="plotly_dark", color_discrete_sequence=["#39D5F6", "#A78BFA"])
+            fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238", legend_title_text="")
+            st.plotly_chart(fig, use_container_width=True)
+        pollutant_chart = comparison_result.melt(
+            id_vars="City",
+            value_vars=["PM2.5 (µg/m³)", "PM10 (µg/m³)"],
+            var_name="Pollutant",
+            value_name="Concentration (µg/m³)",
+        ).dropna(subset=["Concentration (µg/m³)"])
+        if not pollutant_chart.empty:
+            fig = px.bar(pollutant_chart, x="City", y="Concentration (µg/m³)", color="Pollutant", barmode="group", template="plotly_dark", color_discrete_sequence=["#FB7185", "#F59E0B"])
+            fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238")
+            st.plotly_chart(fig, use_container_width=True)
+        index_chart = comparison_result.dropna(subset=["CityPulse Index"])
+        if not index_chart.empty:
+            fig = px.bar(index_chart, x="City", y="CityPulse Index", template="plotly_dark", color="CityPulse Index", color_continuous_scale="Turbo")
+            fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238", coloraxis_showscale=False)
+            st.plotly_chart(fig, use_container_width=True)
+        st.caption("Comparison values are point-in-time provider observations. Sensor coverage, observation times and modelled weather grid cells differ by city; compare timestamps and coverage before drawing conclusions.")
+    for error in st.session_state.get("city_comparison_errors", []):
+        st.warning(error)
+    if st.session_state.get("city_comparison_result", pd.DataFrame()).empty:
+        st.info("Select at least two cities and run the comparison. City comparison calls are cached to reduce repeat requests.")
+elif page == "Air Quality Intelligence":
+    st.subheader("Air quality intelligence")
+    if air.empty:
+        st.info("No nearby OpenAQ readings are available for this city right now. This may reflect station coverage, an unavailable feed or missing API access.")
+        if air_error:
+            st.warning(f"Provider message: {air_error}")
+    else:
+        air_summary = summarize_air_quality(air)
+        station_count = air["location_id"].nunique() if "location_id" in air.columns else air["station"].nunique()
+        newest_age = float(air_summary["age_hours"].min()) if not air_summary.empty else None
+        kpis = st.columns(3)
+        kpis[0].metric("Monitoring stations", f"{station_count:,}")
+        kpis[1].metric("Pollutants reported", f"{air_summary['parameter'].nunique():,}")
+        kpis[2].metric("Newest observation", f"{newest_age:.1f} h ago" if newest_age is not None else "Unavailable")
+        if not air_summary.empty:
+            st.markdown("### Pollutant summary")
+            st.caption("Median is calculated from the returned station readings for each pollutant and unit. This is not an official AQI.")
+            st.dataframe(
+                air_summary.style.format({
+                    "median_value": "{:.2f}",
+                    "min_value": "{:.2f}",
+                    "max_value": "{:.2f}",
+                    "age_hours": "{:.1f}",
+                }),
+                use_container_width=True,
+                hide_index=True,
+            )
+            plot_summary = air_summary.copy()
+            plot_summary["pollutant_label"] = plot_summary["parameter"] + " · " + plot_summary["unit"]
+            fig = px.bar(plot_summary, x="pollutant_label", y="median_value", color="freshness", hover_data=["station_count", "reading_count", "latest_utc", "age_hours"], template="plotly_dark", color_discrete_map={"Fresh":"#A3E635","Recent":"#39D5F6","Stale":"#FB7185"})
+            fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238", xaxis_title="Pollutant", yaxis_title="Median reported value", legend_title_text="Observation freshness")
+            st.plotly_chart(fig, use_container_width=True)
+        parameters = sorted(air["parameter"].dropna().astype(str).unique().tolist()) if "parameter" in air.columns else []
+        if parameters:
+            selected_parameter = st.selectbox("Inspect pollutant readings", parameters, key="air_quality_parameter")
+            detail = air.loc[air["parameter"].astype(str) == selected_parameter].copy()
+            detail_columns = [column for column in ["station", "locality", "value", "unit", "datetime_local", "datetime_utc", "distance_m"] if column in detail.columns]
+            st.markdown("### Sensor-level readings")
+            st.dataframe(detail[detail_columns].sort_values("datetime_utc", ascending=False) if "datetime_utc" in detail.columns else detail[detail_columns], use_container_width=True, hide_index=True)
+        if newest_age is not None and newest_age > 48:
+            st.warning("The newest reading is older than 48 hours. It is displayed for context but should not be treated as current.")
+        elif newest_age is not None:
+            st.caption("Freshness labels use provider observation timestamps. They do not measure instrument calibration or guarantee representative citywide coverage.")
+
 if page == "Command Center":
     st.subheader("City overview")
     if weather_error:
@@ -243,6 +390,19 @@ if page == "Command Center":
     else:
         st.caption("Latest reported sensor values from nearby stations. Values can have different timestamps; check the timestamp column before comparing.")
         st.dataframe(air, use_container_width=True, hide_index=True)
+        air_summary = summarize_air_quality(air)
+        if not air_summary.empty:
+            st.markdown("#### Data coverage & freshness")
+            quality_cols = st.columns(3)
+            station_total = air["location_id"].nunique() if "location_id" in air.columns else air["station"].nunique()
+            freshest_age = float(air_summary["age_hours"].min())
+            quality_cols[0].metric("Reporting stations", f"{station_total:,}")
+            quality_cols[1].metric("Pollutants available", f"{air_summary['parameter'].nunique():,}")
+            quality_cols[2].metric("Freshest reading", f"{freshest_age:.1f} hours ago")
+            if freshest_age > 48:
+                st.warning("The newest nearby air-quality observation is older than 48 hours. Treat it as stale, not live.")
+            else:
+                st.caption("Freshness is calculated from provider observation timestamps. Recent does not guarantee complete city coverage.")
     if not history.empty:
         last_collected = history["observed_at_utc"].max() if "observed_at_utc" in history else None
         st.caption(f"Local observation archive: {len(history):,} rows" + (f" · latest collection {last_collected}" if pd.notna(last_collected) else ""))
@@ -324,16 +484,52 @@ elif page == "Anomaly Detection":
     st.caption("Isolation Forest flags statistical outliers in local weather features. It does not assess health risk or prove an environmental incident.")
 elif page == "Zone Intelligence":
     st.subheader("Zone intelligence")
+    st.caption("This view maps actual monitoring station coordinates. It does not interpolate readings into unmeasured neighbourhoods.")
     if not air.empty and {"latitude", "longitude"}.issubset(air.columns):
-        points = air.dropna(subset=["latitude", "longitude"]).drop_duplicates(subset=["location_id"])
-        if not points.empty:
-            st.caption("Map points are actual OpenAQ station locations within the 25 km search radius.")
-            st.map(points.rename(columns={"latitude":"lat","longitude":"lon"})[["lat","lon"]], latitude="lat", longitude="lon")
-            st.dataframe(air.groupby(["station","parameter","unit"], dropna=False)["value"].median().reset_index(), use_container_width=True, hide_index=True)
+        geo = air.dropna(subset=["latitude", "longitude"]).copy()
+        if not geo.empty:
+            station_count = geo["location_id"].nunique() if "location_id" in geo.columns else geo["station"].nunique()
+            closest_distance = pd.to_numeric(geo.get("distance_m"), errors="coerce").min() if "distance_m" in geo.columns else None
+            kpis = st.columns(3)
+            kpis[0].metric("Mapped stations", f"{station_count:,}")
+            kpis[1].metric("Sensor readings", f"{len(geo):,}")
+            kpis[2].metric("Nearest station", f"{closest_distance / 1000:.1f} km" if pd.notna(closest_distance) else "Unknown")
+            parameters = sorted(geo["parameter"].dropna().astype(str).unique().tolist())
+            selected_parameter = st.selectbox("Map pollutant", parameters, key="zone_map_parameter") if parameters else None
+            map_data = geo.loc[geo["parameter"].astype(str) == selected_parameter].copy() if selected_parameter else geo
+            if not map_data.empty:
+                fig = px.scatter_mapbox(
+                    map_data,
+                    lat="latitude",
+                    lon="longitude",
+                    color="value",
+                    hover_name="station",
+                    hover_data=[column for column in ["parameter", "value", "unit", "datetime_local", "distance_m"] if column in map_data.columns],
+                    color_continuous_scale="Turbo",
+                    zoom=9,
+                    height=540,
+                )
+                fig.update_layout(
+                    mapbox_style="carto-darkmatter",
+                    mapbox_center={"lat": city["latitude"], "lon": city["longitude"]},
+                    paper_bgcolor="#0B1220",
+                    margin={"l": 0, "r": 0, "t": 10, "b": 0},
+                    coloraxis_colorbar_title="Reported value",
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            stations = sorted(geo["station"].dropna().astype(str).unique().tolist())
+            if stations:
+                selected_station = st.selectbox("Inspect monitoring station", stations, key="zone_station")
+                station_rows = geo.loc[geo["station"].astype(str) == selected_station]
+                st.dataframe(station_rows[[column for column in ["parameter", "value", "unit", "datetime_local", "datetime_utc", "distance_m"] if column in station_rows.columns]], use_container_width=True, hide_index=True)
+            if station_count < 5:
+                st.warning("Sparse monitoring coverage: the available stations are not sufficient to infer neighbourhood pollution hotspots.")
+            else:
+                st.info("Station distribution is shown for orientation. No spatial interpolation or neighbourhood exposure estimate is being claimed.")
         else:
-            st.info("OpenAQ returned no geocoded station coordinates.")
+            st.info("OpenAQ returned readings without usable coordinates.")
     else:
-        st.info("No geocoded OpenAQ stations are available. The map shows the selected city centre, not neighbourhood measurements.")
+        st.info("No geocoded OpenAQ stations are available for this city. The map cannot show neighbourhood measurements.")
         st.map(pd.DataFrame({"lat":[city["latitude"]],"lon":[city["longitude"]]}), latitude="lat", longitude="lon")
 elif page == "Scenario Simulator":
     st.subheader("Scenario simulator")
