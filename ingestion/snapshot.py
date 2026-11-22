@@ -23,6 +23,7 @@ WEATHER_PARAMETERS = {
 COLUMNS = [
     "source", "city", "station", "sensor_id", "parameter", "value", "unit",
     "datetime_utc", "observed_at_utc", "latitude", "longitude",
+    "is_mobile", "is_monitor", "timezone", "provider", "owner", "licenses",
 ]
 
 
@@ -41,26 +42,35 @@ def collect_snapshot(api_key: str | None = None) -> pd.DataFrame:
     rows: list[dict] = []
 
     for city_name, city in CITIES.items():
-        weather = fetch_forecast(city["latitude"], city["longitude"], city["timezone"])
-        current = weather.attrs.get("current", {}) or {}
-        weather_time = _local_timestamp_to_utc(current.get("time"), city["timezone"])
-        for parameter, unit in WEATHER_PARAMETERS.items():
-            value = current.get(parameter)
-            if value is None:
-                continue
-            rows.append({
-                "source": "open-meteo",
-                "city": city_name,
-                "station": f"{city_name} model grid",
-                "sensor_id": "open-meteo-current",
-                "parameter": parameter,
-                "value": value,
-                "unit": unit,
-                "datetime_utc": weather_time,
-                "observed_at_utc": observed_at,
-                "latitude": city["latitude"],
-                "longitude": city["longitude"],
-            })
+        try:
+            weather = fetch_forecast(city["latitude"], city["longitude"], city["timezone"])
+            current = weather.attrs.get("current", {}) or {}
+            weather_time = _local_timestamp_to_utc(current.get("time"), city["timezone"])
+            for parameter, unit in WEATHER_PARAMETERS.items():
+                value = current.get(parameter)
+                if value is None:
+                    continue
+                rows.append({
+                    "source": "open-meteo",
+                    "city": city_name,
+                    "station": f"{city_name} model grid",
+                    "sensor_id": "open-meteo-current",
+                    "parameter": parameter,
+                    "value": value,
+                    "unit": unit,
+                    "datetime_utc": weather_time,
+                    "observed_at_utc": observed_at,
+                    "latitude": city["latitude"],
+                    "longitude": city["longitude"],
+                    "is_mobile": False,
+                    "is_monitor": False,
+                    "timezone": city["timezone"],
+                    "provider": "Open-Meteo",
+                    "owner": "Open-Meteo",
+                    "licenses": "",
+                })
+        except Exception as exc:
+            logger.warning("Open-Meteo snapshot failed for %s; continuing to remaining cities: %s", city_name, exc)
 
         if api_key:
             try:
@@ -89,6 +99,12 @@ def collect_snapshot(api_key: str | None = None) -> pd.DataFrame:
                     "observed_at_utc": observed_at,
                     "latitude": measurement.get("latitude"),
                     "longitude": measurement.get("longitude"),
+                    "is_mobile": measurement.get("is_mobile", False),
+                    "is_monitor": measurement.get("is_monitor", False),
+                    "timezone": measurement.get("timezone"),
+                    "provider": measurement.get("provider"),
+                    "owner": measurement.get("owner"),
+                    "licenses": measurement.get("licenses"),
                 })
 
     return pd.DataFrame(rows, columns=COLUMNS)
@@ -108,7 +124,7 @@ def append_snapshot(snapshot: pd.DataFrame, path: str | Path) -> int:
         return 0
 
     combined = combined.drop_duplicates(
-        subset=["source", "station", "sensor_id", "parameter", "datetime_utc"],
+        subset=["source", "city", "station", "sensor_id", "parameter", "datetime_utc"],
         keep="last",
     )
     combined = combined.sort_values(["datetime_utc", "source", "station"], na_position="last")
