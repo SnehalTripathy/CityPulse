@@ -51,6 +51,8 @@ def interpolate_station_surface(
         "grid_spacing_km": float(grid_spacing_km),
         "maximum_nearest_station_km": float(maximum_nearest_station_km),
         "leave_one_out_mae": None,
+        "median_baseline_mae": None,
+        "idw_beats_baseline": None,
         "leave_one_out_rmse": None,
         "value_min": None,
         "value_max": None,
@@ -150,6 +152,7 @@ def interpolate_station_surface(
     # Leave-one-station-out interpolation error is a diagnostic, not a
     # guarantee of map accuracy or spatial representativeness.
     loo_predictions = []
+    median_predictions = []
     for index in range(station_count):
         other = np.delete(points, index, axis=0)
         other_values = np.delete(values, index)
@@ -158,10 +161,18 @@ def interpolate_station_surface(
             continue
         weights = 1.0 / distances_to_others ** float(power)
         loo_predictions.append(float(np.dot(weights, other_values) / weights.sum()))
+        median_predictions.append(float(np.median(other_values)))
     loo_errors = values - np.asarray(loo_predictions)
+    baseline_errors = values - np.asarray(median_predictions)
     if len(loo_errors):
-        diagnostics["leave_one_out_mae"] = round(float(np.mean(np.abs(loo_errors))), 3)
+        loo_mae = float(np.mean(np.abs(loo_errors)))
+        baseline_mae = float(np.mean(np.abs(baseline_errors)))
+        diagnostics["leave_one_out_mae"] = round(loo_mae, 3)
+        diagnostics["median_baseline_mae"] = round(baseline_mae, 3)
         diagnostics["leave_one_out_rmse"] = round(float(np.sqrt(np.mean(loo_errors ** 2))), 3)
+        diagnostics["idw_beats_baseline"] = bool(loo_mae < baseline_mae)
+        if loo_mae >= baseline_mae:
+            return "failed_cross_validation", empty, diagnostics
 
     result = pd.DataFrame({
         "latitude": centre_lat + grid_points[:, 1] / 111.32,
