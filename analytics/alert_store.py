@@ -76,7 +76,7 @@ def _normalise_preferences(preferences: dict | None, *, strict: bool) -> dict:
         except (TypeError, ValueError):
             value = float("nan")
         lower, upper = PREFERENCE_BOUNDS[key]
-        if not pd.notna(value) or not lower <= value <= upper or not pd.notna(value):
+        if not pd.notna(value) or not lower <= value <= upper:
             if strict:
                 raise ValueError(f"Alert threshold {key} must be between {lower:g} and {upper:g}.")
             value = float(DEFAULT_PREFERENCES[key])
