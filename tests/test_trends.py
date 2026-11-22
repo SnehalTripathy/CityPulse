@@ -24,7 +24,11 @@ def test_city_trends_use_shared_utc_days_and_only_comparable_units():
     assert a_day_1["value"] == 15
     assert a_day_1["station_count"] == 2
     assert b_day_1["value"] == 30
+    b_missing_day = frame.loc[(frame["city"] == "B") & (frame["date"] == pd.Timestamp("2026-11-22T00:00:00Z"))].iloc[0]
+    assert pd.isna(b_missing_day["value"])
+    assert b_missing_day["reading_count"] == 0
     assert coverage.set_index("City").loc["A", "Days with data"] == 2
+    assert coverage.set_index("City").loc["B", "Days with data"] == 1
 
 
 def test_city_trends_return_empty_for_missing_history():
