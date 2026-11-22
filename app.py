@@ -605,12 +605,43 @@ elif page == "Zone Intelligence":
         station_key = "location_id" if "location_id" in map_data.columns else "station"
         map_data["datetime_utc"] = pd.to_datetime(map_data["datetime_utc"], errors="coerce", utc=True)
         map_data = map_data.sort_values("datetime_utc").drop_duplicates(subset=[station_key], keep="last")
+        show_interpolation = st.checkbox(
+            "Generate exploratory interpolated surface (requires six recent fixed stations)",
+            value=False,
+            key="zone_show_interpolation",
+        )
+        interpolation_status = None
+        interpolation_frame = pd.DataFrame()
+        interpolation_details = {}
+        if show_interpolation:
+            interpolation_status, interpolation_frame, interpolation_details = interpolate_station_surface(
+                geo, selected_parameter, selected_unit, freshness_hours=12,
+                minimum_stations=6, grid_spacing_km=1.0, maximum_nearest_station_km=3.0,
+            )
         fig = px.scatter_mapbox(
             map_data, lat="latitude", lon="longitude", color="value",
             hover_name="station",
             hover_data=[column for column in ["parameter", "value", "unit", "datetime_local", "datetime_utc", "distance_m"] if column in map_data.columns],
             color_continuous_scale="Turbo", zoom=9, height=560,
         )
+        if interpolation_status == "ready" and not interpolation_frame.empty:
+            fig.add_trace(go.Scattermapbox(
+                lat=interpolation_frame["latitude"],
+                lon=interpolation_frame["longitude"],
+                mode="markers",
+                name="IDW estimated surface (inside station hull)",
+                marker={
+                    "size":14,
+                    "color":interpolation_frame["estimated_value"],
+                    "colorscale":"Turbo",
+                    "opacity":0.42,
+                    "showscale":True,
+                    "colorbar":{"title":f"Estimated {selected_parameter} ({selected_unit})"},
+                },
+                customdata=interpolation_frame[["estimated_value", "nearest_station_km"]].to_numpy(),
+                hovertemplate="IDW estimate: %{customdata[0]:.2f} %{text}<br>Nearest station: %{customdata[1]:.2f} km<extra>Exploratory estimate</extra>",
+                text=[selected_unit] * len(interpolation_frame),
+            ))
         if show_green and not green_spaces.empty:
             fig.add_scattermapbox(
                 lat=green_spaces["latitude"], lon=green_spaces["longitude"],
@@ -627,6 +658,18 @@ elif page == "Zone Intelligence":
             legend={"bgcolor":"rgba(11,18,32,.7)"},
         )
         st.plotly_chart(fig, use_container_width=True)
+        if show_interpolation:
+            if interpolation_status == "ready":
+                validation_cols = st.columns(3)
+                validation_cols[0].metric("Stations used", f"{interpolation_details['station_count']:,}")
+                validation_cols[1].metric("Supported grid cells", f"{interpolation_details['grid_cells']:,}")
+                validation_cols[2].metric("Leave-one-station-out MAE", f"{interpolation_details['leave_one_out_mae']:.2f} {selected_unit}" if interpolation_details["leave_one_out_mae"] is not None else "Unavailable")
+                st.caption(
+                    "Inverse-distance weighting (power 2), restricted to the convex hull of recent fixed stations and within 3 km of a station. "
+                    "The leave-one-station-out error is an internal diagnostic, not a confidence interval. Estimated cells are not measurements."
+                )
+            else:
+                st.info(f"Interpolation withheld: {interpolation_status.replace('_', ' ')}. At least six recent, geocoded, distinct fixed stations with the same pollutant and unit are required.")
     elif geo.empty:
         st.info("No geocoded OpenAQ stations are available for this city. The map cannot show measured neighbourhood pollution.")
     else:
