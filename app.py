@@ -437,10 +437,15 @@ elif page == "Air Quality Intelligence":
             detail_columns = [column for column in ["station", "location_id", "locality", "value", "unit", "datetime_local", "datetime_utc", "distance_m", "is_mobile", "provider", "owner", "licenses"] if column in detail.columns]
             st.markdown("### Sensor-level readings")
             st.dataframe(detail[detail_columns].sort_values("datetime_utc", ascending=False) if "datetime_utc" in detail.columns else detail[detail_columns], use_container_width=True, hide_index=True)
+        future_count = int(pd.to_numeric(air_summary.get("future_timestamp_readings", 0), errors="coerce").fillna(0).sum()) if "future_timestamp_readings" in air_summary else 0
+        if future_count:
+            st.warning(f"{future_count} provider reading(s) have timestamps more than 15 minutes in the future and were excluded from pollutant statistics.")
         if newest_age is not None and newest_age > 48:
-            st.warning("The newest reading is older than 48 hours. It is displayed for context but should not be treated as current.")
+            st.warning("The newest valid reading is older than 48 hours. It is displayed for context but should not be treated as current.")
         elif newest_age is not None:
             st.caption("Freshness labels use provider observation timestamps. They do not measure instrument calibration or guarantee representative citywide coverage.")
+        elif future_count:
+            st.caption("No valid observation timestamp is available for this pollutant selection.")
 
 elif page == "Command Center":
     st.subheader("City overview")
@@ -516,9 +521,12 @@ elif page == "Command Center":
         freshest_age = float(valid_ages.min()) if not valid_ages.empty else None
         quality_cols[1].metric("Air monitoring stations", f"{station_total:,}")
         quality_cols[2].metric("Newest air observation", f"{freshest_age:.1f} h ago" if freshest_age is not None else "Unavailable")
+        future_count = int(pd.to_numeric(air_summary.get("future_timestamp_readings", 0), errors="coerce").fillna(0).sum()) if "future_timestamp_readings" in air_summary else 0
+        if future_count:
+            st.warning(f"{future_count} air-quality reading(s) have invalid future timestamps and are excluded from current freshness and pollutant calculations.")
         if freshest_age is not None and freshest_age > 48:
-            st.warning("The newest nearby air-quality observation is older than 48 hours. Treat it as stale, not live.")
-        else:
+            st.warning("The newest valid nearby air-quality observation is older than 48 hours. Treat it as stale, not live.")
+        elif freshest_age is not None:
             st.caption("Freshness uses provider observation timestamps. Station counts indicate returned coverage, not complete city coverage.")
     if weather_age is not None and weather_age > 12:
         st.warning("The selected city's weather timestamp is more than 12 hours old.")
