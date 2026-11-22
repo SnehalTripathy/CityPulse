@@ -102,7 +102,7 @@ country_name = st.sidebar.selectbox(
     country_options,
     index=0,
     key="selected_country",
-    format_func=lambda country: "🇮🇳  India" if country == "India" else country,
+    format_func=lambda country: country,
 )
 available_cities = COUNTRY_CITIES[country_name]
 if st.session_state.get("selected_city") not in available_cities:
