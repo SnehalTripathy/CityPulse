@@ -90,6 +90,9 @@ def latest_pollutant_summary(
         axis=1,
     )
     station_key = "location_id" if "location_id" in frame.columns else "station"
+    if station_key == "location_id" and "station" in frame.columns:
+        frame["_station_key"] = frame["location_id"].where(frame["location_id"].notna(), frame["station"])
+        station_key = "_station_key"
     if station_key not in frame.columns:
         frame["_station"] = frame.index.astype(str)
         station_key = "_station"
@@ -137,6 +140,9 @@ def build_city_comparison_record(
     else:
         mobile_mask = pd.Series(False, index=air_frame.index)
     station_key = "location_id" if "location_id" in air_frame.columns else "station"
+    if station_key == "location_id" and "station" in air_frame.columns:
+        air_frame["_station_key"] = air_frame["location_id"].where(air_frame["location_id"].notna(), air_frame["station"])
+        station_key = "_station_key"
     fixed_stations = int(air_frame.loc[~mobile_mask, station_key].nunique(dropna=True)) if station_key in air_frame.columns else 0
     mobile_stations = int(air_frame.loc[mobile_mask, station_key].nunique(dropna=True)) if station_key in air_frame.columns else 0
 
