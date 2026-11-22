@@ -67,7 +67,7 @@ out center tags {int(limit)};
 
 def _fetch_wms_image(endpoint: str, layer: str, latitude: float, longitude: float, date_value: str | None = None, width: int = 720, height: int = 560) -> bytes:
     delta_lat = 0.055
-    delta_lon = 0.055 / max(0.25, abs(__import__("math").cos(__import__("math").radians(latitude))))
+    delta_lon = 0.055 / max(0.25, abs(math.cos(math.radians(latitude))))
     params = {
         "service": "WMS",
         "version": "1.1.1",
