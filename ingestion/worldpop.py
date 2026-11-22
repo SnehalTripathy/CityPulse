@@ -59,7 +59,7 @@ def _validate_geometry(geometry: dict) -> None:
     pairs = list(_coordinate_pairs(geometry.get("coordinates")))
     if not pairs or any(
         not math.isfinite(lon) or not math.isfinite(lat)
-        or not -180 <= lon <= 180 or not -90 <= lat <= 90
+        or not -180 <= lon <= 180 or not -60 <= lat <= 84
         for lon, lat in pairs
     ):
         raise ValueError("WorldPop exposure geometry must contain valid WGS84 coordinates.")
@@ -75,8 +75,8 @@ def circle_geojson(
     lat = float(latitude)
     lon = float(longitude)
     radius = float(radius_km)
-    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-        raise ValueError("Latitude or longitude is outside WGS84 bounds.")
+    if not (-60 <= lat <= 84 and -180 <= lon <= 180):
+        raise ValueError("WorldPop supports latitudes from -60 to 84 degrees and longitudes from -180 to 180 degrees.")
     if not (0 < radius <= 100):
         raise ValueError("Population catchment radius must be between 0 and 100 km.")
     try:
@@ -215,9 +215,12 @@ def fetch_population_context(
     if reported_density is not None and reported_density < 0:
         reported_density = None
 
+    returned_year = _finite_number(groups.get("data_year", catchment.get("data_year", selected_year)))
+    if returned_year is None or not returned_year.is_integer() or not 2015 <= returned_year <= 2030:
+        raise WorldPopUnavailable("WorldPop returned an invalid data year.")
     return {
         "city_centre": {"latitude": float(latitude), "longitude": float(longitude)},
-        "data_year": int(groups.get("data_year", catchment.get("data_year", selected_year))),
+        "data_year": int(returned_year),
         "data_source": (
             str(groups.get("data_source") or catchment.get("data_source"))
             if "R2025A" in str(groups.get("data_source") or catchment.get("data_source") or "")
