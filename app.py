@@ -216,7 +216,8 @@ def load_land_surface_temperature(lat: float, lon: float):
     return fetch_nasa_land_surface_temperature(lat, lon)
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def load_worldpop_context(lat: float, lon: float, year: int):
+def load_worldpop_context(lat: float, lon: float, year: int, cache_revision: str = "density-r2"):
+    # Bump this revision when the response schema/derived fields change.
     return fetch_population_context(lat, lon, year)
 
 
@@ -1083,7 +1084,7 @@ elif page == "Environmental Health & Exposure":
     try:
         with st.spinner("Loading population estimates and demographic groups from WorldPop…"):
             population_context = load_worldpop_context(
-                city["latitude"], city["longitude"], int(pop_year)
+                city["latitude"], city["longitude"], int(pop_year), "density-r2"
             )
         pop_cols = st.columns(3)
         total_pop = population_context.get("total_population_10km")
