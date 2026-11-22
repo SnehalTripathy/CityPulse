@@ -7,7 +7,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from config.cities import CITIES
+from config.cities import CITIES, COUNTRY_CITIES
 from ingestion.weather_api import fetch_forecast
 from ingestion.openaq_api import fetch_latest_measurements
 from analytics.stress_index import add_weather_stress
@@ -54,6 +54,7 @@ h3 { font-size:1.25rem !important; }
 p, label, .stMarkdown { color:#DCE6F7; }
 [data-testid="stSidebar"] { background:linear-gradient(180deg,#111C34 0%,#0B1325 100%); border-right:1px solid rgba(96,165,250,.18); }
 [data-testid="stSidebar"] h2 { background:linear-gradient(90deg,var(--cyan),var(--violet),var(--pink)); -webkit-background-clip:text; color:transparent !important; }
+.country-featured { margin:.15rem 0 .45rem; padding:.48rem .7rem; border-radius:10px; background:linear-gradient(90deg,rgba(57,213,246,.10),rgba(163,230,53,.07)); border:1px solid rgba(163,230,53,.20); color:#D9F99D; font-size:.82rem; font-weight:700; letter-spacing:.02em; }
 [data-testid="stSidebar"] [data-testid="stRadio"] label { border-radius:10px; padding:.35rem .55rem; transition:all .2s ease; }
 [data-testid="stSidebar"] [data-testid="stRadio"] label:hover { background:rgba(57,213,246,.10); }
 .pulse {
@@ -96,8 +97,15 @@ footer { visibility:hidden; }
 
 st.sidebar.markdown("## 🌆 CityPulse")
 st.sidebar.caption("URBAN STRESS INTELLIGENCE")
-city_name = st.sidebar.selectbox("Pilot city", list(CITIES.keys()), index=0)
+st.sidebar.markdown('<div class="country-featured">🇮🇳 &nbsp; INDIA · FEATURED</div>', unsafe_allow_html=True)
+country_options = ["India"] + [country for country in COUNTRY_CITIES if country != "India"]
+country_name = st.sidebar.selectbox("Country", country_options, index=0, key="selected_country")
+available_cities = COUNTRY_CITIES[country_name]
+if st.session_state.get("selected_city") not in available_cities:
+    st.session_state["selected_city"] = "Bengaluru" if country_name == "India" else available_cities[0]
+city_name = st.sidebar.selectbox("City", available_cities, key="selected_city")
 city = CITIES[city_name]
+st.sidebar.caption(f"Selected location · {country_name}")
 if not history.empty and "city" in history.columns:
     history = history.loc[history["city"] == city_name].copy()
 def _open_zone_intelligence():
@@ -321,7 +329,7 @@ elif page == "Zone Intelligence":
         else:
             st.info("OpenAQ returned no geocoded station coordinates.")
     else:
-        st.info("No geocoded OpenAQ stations are available. The map shows the Bengaluru pilot centre, not neighbourhood measurements.")
+        st.info("No geocoded OpenAQ stations are available. The map shows the selected city centre, not neighbourhood measurements.")
         st.map(pd.DataFrame({"lat":[city["latitude"]],"lon":[city["longitude"]]}), latitude="lat", longitude="lon")
 elif page == "Scenario Simulator":
     st.subheader("Scenario simulator")
@@ -352,7 +360,7 @@ elif page == "Scenario Simulator":
 else:
     st.subheader("Methodology & data notes")
     st.markdown("""
-**Pilot geography:** Bengaluru, Karnataka, India.
+**Geographic coverage:** India plus selected major cities across Japan, China, the United States, the United Kingdom, France, Russia, Brazil, Mexico, Egypt, Thailand, South Africa and Italy. City coordinates are approximate city-centre reference points.
 
 **Weather:** Open-Meteo forecast API. Current modelled conditions and hourly forecasts are displayed separately.
 
