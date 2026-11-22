@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore:
       - "data/raw/observations.csv"
+      - "data/processed/daily_city_observations.csv"
   pull_request:
     branches: [main]
 
