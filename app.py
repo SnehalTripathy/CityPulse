@@ -54,7 +54,6 @@ h3 { font-size:1.25rem !important; }
 p, label, .stMarkdown { color:#DCE6F7; }
 [data-testid="stSidebar"] { background:linear-gradient(180deg,#111C34 0%,#0B1325 100%); border-right:1px solid rgba(96,165,250,.18); }
 [data-testid="stSidebar"] h2 { background:linear-gradient(90deg,var(--cyan),var(--violet),var(--pink)); -webkit-background-clip:text; color:transparent !important; }
-.country-featured { margin:.15rem 0 .45rem; padding:.48rem .7rem; border-radius:10px; background:linear-gradient(90deg,rgba(57,213,246,.10),rgba(163,230,53,.07)); border:1px solid rgba(163,230,53,.20); color:#D9F99D; font-size:.82rem; font-weight:700; letter-spacing:.02em; }
 [data-testid="stSidebar"] [data-testid="stRadio"] label { border-radius:10px; padding:.35rem .55rem; transition:all .2s ease; }
 [data-testid="stSidebar"] [data-testid="stRadio"] label:hover { background:rgba(57,213,246,.10); }
 .pulse {
@@ -97,9 +96,14 @@ footer { visibility:hidden; }
 
 st.sidebar.markdown("## 🌆 CityPulse")
 st.sidebar.caption("URBAN STRESS INTELLIGENCE")
-st.sidebar.markdown('<div class="country-featured">🇮🇳 &nbsp; INDIA · FEATURED</div>', unsafe_allow_html=True)
-country_options = ["India"] + [country for country in COUNTRY_CITIES if country != "India"]
-country_name = st.sidebar.selectbox("Country", country_options, index=0, key="selected_country")
+country_options = ["India"] + sorted(country for country in COUNTRY_CITIES if country != "India")
+country_name = st.sidebar.selectbox(
+    "Country",
+    country_options,
+    index=0,
+    key="selected_country",
+    format_func=lambda country: "🇮🇳  India" if country == "India" else country,
+)
 available_cities = COUNTRY_CITIES[country_name]
 if st.session_state.get("selected_city") not in available_cities:
     st.session_state["selected_city"] = "Bengaluru" if country_name == "India" else available_cities[0]
