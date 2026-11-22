@@ -326,6 +326,17 @@ def fetch_worldpop_event_exposure(
         raise WorldPopUnavailable("WorldPop returned an invalid weighted population-exposure estimate.")
     if population_within is not None and population_within < 0:
         raise WorldPopUnavailable("WorldPop returned an invalid population-within value.")
+    returned_year = _finite_number(result.get("data_year", selected_year))
+    if returned_year is None or not returned_year.is_integer() or not 2015 <= returned_year <= 2030:
+        raise WorldPopUnavailable("WorldPop returned an invalid data year.")
+    returned_radius = _finite_number(result.get("radius_km", selected_radius))
+    if returned_radius is None or returned_radius <= 0 or returned_radius > 100:
+        raise WorldPopUnavailable("WorldPop returned an invalid exposure radius.")
+    return {
+        "data_year": int(returned_year),
+        "radius_km": returned_radius,
+        "exposed_population": exposed_population,
+        "population_within": population_within,
         "rings": total.get("rings") if isinstance(total.get("rings"), list) else [],
         "features": result.get("features") if isinstance(result.get("features"), list) else [],
         "decay": str(result.get("decay", "worldpop")),
