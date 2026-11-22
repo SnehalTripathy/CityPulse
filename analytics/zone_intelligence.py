@@ -34,8 +34,9 @@ def build_zone_coverage(
         "query_radius_km": 25.0,
     }
     station_columns = [
-        "station", "latitude", "longitude", "distance_km", "latest_utc",
-        "age_hours", "freshness", "pollutant_count", "reading_count",
+        "station", "location_id", "latitude", "longitude", "distance_km", "latest_utc",
+        "age_hours", "freshness", "is_mobile", "pollutant_count", "reading_count",
+        "provider", "owner", "timezone", "licenses",
     ]
     if air.empty or "datetime_utc" not in air.columns:
         return summary_defaults, pd.DataFrame(columns=station_columns), pd.DataFrame()
@@ -76,6 +77,7 @@ def build_zone_coverage(
         rows.append({
             "station": str(group["station"].dropna().iloc[0]) if "station" in group and group["station"].notna().any() else str(station_id),
             "station_id": station_id,
+            "location_id": station_id,
             "latitude": lat,
             "longitude": lon,
             "distance_km": distance_km,
@@ -85,9 +87,14 @@ def build_zone_coverage(
             "pollutant_count": int(group["parameter"].nunique()) if "parameter" in group else 0,
             "reading_count": int(len(group)),
             "is_mobile": bool(group["is_mobile"].map(lambda value: str(value).strip().lower() in {"true", "1", "yes", "y"}).any()) if "is_mobile" in group else False,
+            "provider": str(group["provider"].dropna().iloc[0]) if "provider" in group and group["provider"].notna().any() else "Unavailable",
+            "owner": str(group["owner"].dropna().iloc[0]) if "owner" in group and group["owner"].notna().any() else "Unavailable",
+            "timezone": str(group["timezone"].dropna().iloc[0]) if "timezone" in group and group["timezone"].notna().any() else "Unavailable",
+            "licenses": str(group["licenses"].dropna().iloc[0]) if "licenses" in group and group["licenses"].notna().any() else "Unavailable",
         })
     inventory = pd.DataFrame(rows)
-    mapped = inventory.dropna(subset=["latitude", "longitude"]).copy()
+    fixed_inventory = inventory.loc[~inventory["is_mobile"]].copy()
+    mapped = fixed_inventory.dropna(subset=["latitude", "longitude"]).copy()
     distances = mapped["distance_km"].dropna()
     if not mapped.empty:
         # A 5 km local grid reports only cells containing returned stations.
@@ -111,9 +118,9 @@ def build_zone_coverage(
         "median_station_distance_km": round(float(distances.median()), 2) if not distances.empty else None,
         "farthest_station_km": round(float(distances.max()), 2) if not distances.empty else None,
         "occupied_grid_cells": int(len(grid_frame)),
-        "fresh_stations": int((inventory["freshness"] == "Fresh").sum()),
-        "recent_stations": int((inventory["freshness"] == "Recent").sum()),
-        "stale_stations": int((inventory["freshness"] == "Stale").sum()),
+        "fresh_stations": int((fixed_inventory["freshness"] == "Fresh").sum()),
+        "recent_stations": int((fixed_inventory["freshness"] == "Recent").sum()),
+        "stale_stations": int((fixed_inventory["freshness"] == "Stale").sum()),
         "mobile_stations": int(inventory["is_mobile"].sum()) if "is_mobile" in inventory else 0,
         "fixed_stations": int((~inventory["is_mobile"]).sum()) if "is_mobile" in inventory else int(len(inventory)),
         "query_radius_km": 25.0,
