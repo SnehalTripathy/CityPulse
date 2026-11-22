@@ -59,8 +59,6 @@ def load_history() -> pd.DataFrame:
 @st.cache_data(ttl=600, show_spinner=False)
 def load_daily_history() -> pd.DataFrame:
     local = load_daily_observations()
-    if not local.empty:
-        return local
     archive_url = "https://raw.githubusercontent.com/SnehalTripathy/CityPulse/main/data/processed/daily_city_observations.csv"
     try:
         response = requests.get(archive_url, timeout=(4, 25))
