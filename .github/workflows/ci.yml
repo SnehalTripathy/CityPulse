@@ -3,6 +3,8 @@ name: CityPulse CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "data/raw/observations.csv"
   pull_request:
     branches: [main]
 
