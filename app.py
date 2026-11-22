@@ -510,7 +510,10 @@ elif page == "Zone Intelligence":
             kpis[2].metric("Nearest station", f"{closest_distance / 1000:.1f} km" if pd.notna(closest_distance) else "Unknown")
             parameters = sorted(geo["parameter"].dropna().astype(str).unique().tolist())
             selected_parameter = st.selectbox("Map pollutant", parameters, key="zone_map_parameter") if parameters else None
-            map_data = geo.loc[geo["parameter"].astype(str) == selected_parameter].copy() if selected_parameter else geo
+            parameter_data = geo.loc[geo["parameter"].astype(str) == selected_parameter].copy() if selected_parameter else geo
+            map_units = sorted(parameter_data["unit"].dropna().astype(str).unique().tolist()) if "unit" in parameter_data.columns else []
+            selected_unit = st.selectbox("Measurement unit", map_units, key="zone_map_unit") if map_units else None
+            map_data = parameter_data.loc[parameter_data["unit"].astype(str) == selected_unit].copy() if selected_unit else parameter_data
             if not map_data.empty:
                 fig = px.scatter_mapbox(
                     map_data,
