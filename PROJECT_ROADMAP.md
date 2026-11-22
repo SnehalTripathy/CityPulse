@@ -94,6 +94,6 @@ This is the working project checklist. Check an item only after implementation a
 - [ ] Distinguish modelled weather, sensor measurements, provider forecasts and CityPulse model outputs
 - [x] Show timestamps, units, sources and missing-data states for current live comparison and air-quality views
 - [x] Confirm city timezone handling for every country (all registry timezones validated and passed to weather requests)
-- [x] Automated tests pass (20 tests passed in GitHub Actions)
+- [x] Automated tests pass (27 tests passed in GitHub Actions)
 - [x] README accurately describes released features and limitations
 - [ ] Streamlit deployment successfully starts and core pages render
