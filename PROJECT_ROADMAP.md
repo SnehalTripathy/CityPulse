@@ -90,7 +90,7 @@ This is the working project checklist. Check an item only after implementation a
 - [ ] No synthetic or silently imputed live environmental measurements
 - [ ] Distinguish modelled weather, sensor measurements, provider forecasts and CityPulse model outputs
 - [x] Show timestamps, units, sources and missing-data states for current live comparison and air-quality views
-- [ ] Confirm city timezone handling for every country
-- [ ] Automated tests pass
-- [ ] README accurately describes released features and limitations
+- [x] Confirm city timezone handling for every country (all registry timezones validated and passed to weather requests)
+- [x] Automated tests pass (20 tests passed in GitHub Actions)
+- [x] README accurately describes released features and limitations
 - [ ] Streamlit deployment successfully starts and core pages render
