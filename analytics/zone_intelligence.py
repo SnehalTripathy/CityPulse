@@ -106,7 +106,11 @@ def build_zone_coverage(
         })
     inventory = pd.DataFrame(rows)
     fixed_inventory = inventory.loc[~inventory["is_mobile"]].copy()
-    mapped = fixed_inventory.dropna(subset=["latitude", "longitude"]).copy()
+    # Future-dated stations remain visible in the inventory, but cannot count
+    # as valid current coverage cells until their timestamps become plausible.
+    mapped = fixed_inventory.loc[
+        fixed_inventory["freshness"] != "Future timestamp"
+    ].dropna(subset=["latitude", "longitude"]).copy()
     distances = mapped["distance_km"].dropna()
     if not mapped.empty:
         # A 5 km local grid reports only cells containing returned stations.
