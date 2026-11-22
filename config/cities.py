@@ -711,12 +711,63 @@ CITIES = {
         "latitude": 45.4408, "longitude": 12.3155,
         "timezone": "Europe/Rome",
     },
+    "Adelaide": {
+        "country": "Australia", "state": "South Australia",
+        "latitude": -34.9285, "longitude": 138.6007,
+        "timezone": "Australia/Adelaide",
+    },
+    "Brisbane": {
+        "country": "Australia", "state": "Queensland",
+        "latitude": -27.4698, "longitude": 153.0251,
+        "timezone": "Australia/Brisbane",
+    },
+    "Canberra": {
+        "country": "Australia", "state": "Australian Capital Territory",
+        "latitude": -35.2809, "longitude": 149.13,
+        "timezone": "Australia/Sydney",
+    },
+    "Darwin": {
+        "country": "Australia", "state": "Northern Territory",
+        "latitude": -12.4634, "longitude": 130.8456,
+        "timezone": "Australia/Darwin",
+    },
+    "Gold Coast": {
+        "country": "Australia", "state": "Queensland",
+        "latitude": -28.0167, "longitude": 153.4,
+        "timezone": "Australia/Brisbane",
+    },
+    "Hobart": {
+        "country": "Australia", "state": "Tasmania",
+        "latitude": -42.8821, "longitude": 147.3272,
+        "timezone": "Australia/Hobart",
+    },
+    "Melbourne": {
+        "country": "Australia", "state": "Victoria",
+        "latitude": -37.8136, "longitude": 144.9631,
+        "timezone": "Australia/Melbourne",
+    },
+    "Newcastle": {
+        "country": "Australia", "state": "New South Wales",
+        "latitude": -32.9283, "longitude": 151.7817,
+        "timezone": "Australia/Sydney",
+    },
+    "Perth": {
+        "country": "Australia", "state": "Western Australia",
+        "latitude": -31.9505, "longitude": 115.8605,
+        "timezone": "Australia/Perth",
+    },
+    "Sydney": {
+        "country": "Australia", "state": "New South Wales",
+        "latitude": -33.8688, "longitude": 151.2093,
+        "timezone": "Australia/Sydney",
+    },
 }
 
 
 # Country selector groups; India is pinned first, followed by alphabetical order.
 COUNTRY_CITIES = {
     "India": sorted([name for name, details in CITIES.items() if details["country"] == "India"]),
+    "Australia": sorted([name for name, details in CITIES.items() if details["country"] == "Australia"]),
     "Brazil": sorted([name for name, details in CITIES.items() if details["country"] == "Brazil"]),
     "China": sorted([name for name, details in CITIES.items() if details["country"] == "China"]),
     "Egypt": sorted([name for name, details in CITIES.items() if details["country"] == "Egypt"]),
