@@ -624,8 +624,8 @@ elif page == "Zone Intelligence":
         f"Occupied cells show where returned stations fall; empty cells are not treated as confirmed monitoring gaps."
     )
     distance_cols = st.columns(3)
-    distance_cols[0].metric("Nearest returned station", f"{coverage['nearest_station_km']:.1f} km" if coverage["nearest_station_km"] is not None else "Unavailable")
-    distance_cols[1].metric("Median station distance", f"{coverage['median_station_distance_km']:.1f} km" if coverage["median_station_distance_km"] is not None else "Unavailable")
+    distance_cols[0].metric("Nearest fixed station", f"{coverage['nearest_station_km']:.1f} km" if coverage["nearest_station_km"] is not None else "Unavailable")
+    distance_cols[1].metric("Median fixed-station distance", f"{coverage['median_station_distance_km']:.1f} km" if coverage["median_station_distance_km"] is not None else "Unavailable")
     distance_cols[2].metric("Occupied 5 km cells", f"{coverage['occupied_grid_cells']:,}")
 
     map_age = st.selectbox(
@@ -725,6 +725,8 @@ elif page == "Zone Intelligence":
                 st.info(f"Interpolation withheld: {interpolation_status.replace('_', ' ')}. At least six recent, geocoded, distinct fixed stations with the same pollutant and unit are required.")
     elif geo.empty:
         st.info("No geocoded OpenAQ stations are available for this city. The map cannot show measured neighbourhood pollution.")
+    elif map_source.empty:
+        st.info(f"No station observations fall within the selected map age filter ({map_age.lower()}). Older readings remain visible in the station inventory.")
     else:
         st.info("No readings are available for the selected pollutant/unit combination.")
 
