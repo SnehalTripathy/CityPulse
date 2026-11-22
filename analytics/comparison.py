@@ -100,7 +100,7 @@ def latest_pollutant_summary(
 
     frame = frame.sort_values("datetime_utc").drop_duplicates(subset=[station_key], keep="last")
     latest = frame["datetime_utc"].max()
-    station_ages = (now - frame["datetime_utc"]).dt.total_seconds() / 3600.0
+    station_ages = ((now - frame["datetime_utc"]).dt.total_seconds() / 3600.0).clip(lower=0.0)
     return {
         "value": float(frame["value_ug_m3"].median()),
         "station_count": int(frame[station_key].nunique()),
@@ -140,6 +140,10 @@ def build_city_comparison_record(
     fixed_stations = int(air_frame.loc[~mobile_mask, station_key].nunique(dropna=True)) if station_key in air_frame.columns else 0
     mobile_stations = int(air_frame.loc[mobile_mask, station_key].nunique(dropna=True)) if station_key in air_frame.columns else 0
 
+    valid_summary = summary.loc[summary["freshness"] != "Future timestamp"].copy()
+    valid_air_ages = pd.to_numeric(valid_summary["age_hours"], errors="coerce").dropna()
+    latest_air_utc = valid_summary["latest_utc"].max() if not valid_summary.empty else None
+
     return {
         "City": city_name,
         "Weather observation time": current_weather.get("time"),
@@ -158,8 +162,8 @@ def build_city_comparison_record(
         "PM10 latest UTC": pm10["latest_utc"],
         "PM10 oldest station age (h)": pm10["oldest_station_age_hours"],
         "PM10 median station age (h)": pm10["median_station_age_hours"],
-        "Latest air observation (UTC)": summary["latest_utc"].max() if not summary.empty else None,
-        "Air reading age (h)": float(summary["age_hours"].min()) if not summary.empty else None,
+        "Latest air observation (UTC)": latest_air_utc,
+        "Air reading age (h)": float(valid_air_ages.min()) if not valid_air_ages.empty else None,
         "CityPulse Index": stress.get("index"),
         "Monitoring stations": stations,
         "Fixed monitoring stations": fixed_stations,
