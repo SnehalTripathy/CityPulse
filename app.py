@@ -12,7 +12,9 @@ from ingestion.weather_api import fetch_forecast
 from ingestion.openaq_api import fetch_latest_measurements
 from analytics.stress_index import add_weather_stress
 from analytics.urban_stress import calculate_urban_stress
-from utils.storage import ensure_data_dirs
+from ml.anomaly import detect_recent_weather_anomaly
+from ml.forecasting import train_next_observation_model
+from utils.storage import ensure_data_dirs, load_observations
 
 st.set_page_config(
     page_title="CityPulse | Urban Stress Intelligence",
@@ -22,6 +24,12 @@ st.set_page_config(
 )
 
 ensure_data_dirs()
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_history() -> pd.DataFrame:
+    return load_observations()
+
+history = load_history()
 
 st.markdown("""
 <style>
@@ -143,42 +151,124 @@ if page == "Command Center":
     else:
         st.caption("Latest reported sensor values from nearby stations. Values can have different timestamps; check the timestamp column before comparing.")
         st.dataframe(air, use_container_width=True, hide_index=True)
+    if not history.empty:
+        last_collected = history["observed_at_utc"].max() if "observed_at_utc" in history else None
+        st.caption(f"Local observation archive: {len(history):,} rows" + (f" · latest collection {last_collected}" if pd.notna(last_collected) else ""))
 elif page == "Environmental Analytics":
     st.subheader("Environmental analytics")
-    if weather.empty:
-        st.info("Weather data is not currently available.")
-    else:
-        vars_ = [c for c in ["temperature_2m","apparent_temperature","relative_humidity_2m","precipitation","wind_speed_10m"] if c in weather]
-        selected = st.multiselect("Metrics", vars_, default=vars_[:3])
-        if selected:
-            fig = px.line(weather.head(72), x="time", y=selected, template="plotly_dark")
-            fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238")
-            st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(weather.head(72), use_container_width=True, hide_index=True)
+    tabs = st.tabs(["Live weather forecast", "Collected weather history", "Air-quality history"])
+    with tabs[0]:
+        if weather.empty:
+            st.info("Weather data is not currently available.")
+        else:
+            vars_ = [c for c in ["temperature_2m","apparent_temperature","relative_humidity_2m","precipitation","wind_speed_10m"] if c in weather]
+            selected = st.multiselect("Forecast metrics", vars_, default=vars_[:3])
+            if selected:
+                fig = px.line(weather.head(72), x="time", y=selected, template="plotly_dark")
+                fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238")
+                st.plotly_chart(fig, use_container_width=True)
+    with tabs[1]:
+        weather_history = history[history["source"] == "open-meteo"] if not history.empty else pd.DataFrame()
+        if weather_history.empty:
+            st.info("The scheduled collector has not stored weather history yet. It runs every three hours.")
+        else:
+            choices = sorted(weather_history["parameter"].dropna().unique().tolist())
+            chosen = st.multiselect("Historical weather variables", choices, default=choices[:2])
+            if chosen:
+                filtered = weather_history[weather_history["parameter"].isin(chosen)]
+                fig = px.line(filtered, x="datetime_utc", y="value", color="parameter", markers=True, template="plotly_dark")
+                fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238")
+                st.plotly_chart(fig, use_container_width=True)
+            st.caption(f"{len(weather_history):,} archived weather readings")
+    with tabs[2]:
+        air_history = history[history["source"] == "openaq"] if not history.empty else pd.DataFrame()
+        if air_history.empty:
+            st.info("No archived OpenAQ readings yet. Add OPENAQ_API_KEY as a GitHub Actions secret to enable collection.")
+        else:
+            choices = sorted(air_history["parameter"].dropna().unique().tolist())
+            chosen = st.multiselect("Pollutants", choices, default=choices[:2])
+            filtered = air_history[air_history["parameter"].isin(chosen)]
+            if not filtered.empty:
+                fig = px.scatter(filtered, x="datetime_utc", y="value", color="parameter", hover_name="station", template="plotly_dark")
+                fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238")
+                st.plotly_chart(fig, use_container_width=True)
+            st.dataframe(air_history.sort_values("datetime_utc", ascending=False).head(100), use_container_width=True, hide_index=True)
 elif page == "Predictive Intelligence":
     st.subheader("Predictive intelligence")
-    st.info("Forecast charts currently use Open-Meteo forecast fields. A trained local model will be introduced only after sufficient aligned historical observations have been collected and validated.")
+    st.markdown("### Provider forecast")
     if not weather.empty:
+        st.caption("Open-Meteo forecast, shown separately from CityPulse's trained model.")
         st.dataframe(weather.head(48), use_container_width=True, hide_index=True)
+    st.markdown("### CityPulse machine-learning estimate")
+    forecast_result = train_next_observation_model(history)
+    if forecast_result["status"] != "ready":
+        st.info(f"Model is in data-collection mode: {forecast_result['samples']} valid samples. {forecast_result['reason']}")
+    else:
+        metric_cols = st.columns(3)
+        metric_cols[0].metric("Training pairs", f"{forecast_result['samples']:,}")
+        metric_cols[1].metric("Holdout MAE", f"{forecast_result['mae']:.2f} °C")
+        metric_cols[2].metric("Persistence baseline MAE", f"{forecast_result['persistence_mae']:.2f} °C")
+        if forecast_result["beats_persistence"]:
+            st.metric("Next-step apparent temperature estimate", f"{forecast_result['prediction']:.1f} °C", help="Experimental Random Forest estimate for the next scheduled observation, approximately three hours later.")
+        else:
+            st.warning("The model did not outperform the simple persistence baseline on the time-ordered holdout. Its next-step estimate is withheld until it demonstrates improvement.")
+        st.caption(f"Model: {forecast_result['model']} · RMSE: {forecast_result['rmse']:.2f} °C · Last sample: {forecast_result['last_observation']}")
+    st.caption("The model uses only historical Open-Meteo snapshots. It is not a substitute for the provider forecast or an official warning.")
 elif page == "Anomaly Detection":
-    st.subheader("Anomaly detection")
-    st.info("Anomaly detection is planned after a reliable rolling observation history is available. A single live API response is not enough to claim statistically meaningful anomalies.")
+    st.subheader("Weather pattern anomaly detection")
+    anomaly = detect_recent_weather_anomaly(history)
+    if anomaly["status"] != "ready":
+        st.info(f"Baseline-building mode: {anomaly['samples']} complete snapshots. {anomaly['reason']}")
+    else:
+        cols = st.columns(3)
+        cols[0].metric("Baseline snapshots", f"{anomaly['samples']:,}")
+        cols[1].metric("Anomalies in history", anomaly["anomalies"])
+        cols[2].metric("Latest anomaly score", f"{anomaly['latest_score']:.4f}")
+        if anomaly["latest_is_anomaly"]:
+            st.warning("The latest weather snapshot is unusual relative to the collected baseline.")
+        else:
+            st.success("The latest weather snapshot is within the model's learned baseline.")
+        st.caption(f"Model: {anomaly['model']} · Latest point: {anomaly['latest_timestamp']}")
+    st.caption("Isolation Forest flags statistical outliers in local weather features. It does not assess health risk or prove an environmental incident.")
 elif page == "Zone Intelligence":
     st.subheader("Zone intelligence")
-    st.info("The first release is city-level. Zone-level comparisons require geocoded station observations or a verified spatial dataset; we will not fabricate neighbourhood readings.")
-    st.map(pd.DataFrame({"lat":[city["latitude"]],"lon":[city["longitude"]]}), latitude="lat", longitude="lon")
+    if not air.empty and {"latitude", "longitude"}.issubset(air.columns):
+        points = air.dropna(subset=["latitude", "longitude"]).drop_duplicates(subset=["location_id"])
+        if not points.empty:
+            st.caption("Map points are actual OpenAQ station locations within the 25 km search radius.")
+            st.map(points.rename(columns={"latitude":"lat","longitude":"lon"})[["lat","lon"]], latitude="lat", longitude="lon")
+            st.dataframe(air.groupby(["station","parameter","unit"], dropna=False)["value"].median().reset_index(), use_container_width=True, hide_index=True)
+        else:
+            st.info("OpenAQ returned no geocoded station coordinates.")
+    else:
+        st.info("No geocoded OpenAQ stations are available. The map shows the Bengaluru pilot centre, not neighbourhood measurements.")
+        st.map(pd.DataFrame({"lat":[city["latitude"]],"lon":[city["longitude"]]}), latitude="lat", longitude="lon")
 elif page == "Scenario Simulator":
     st.subheader("Scenario simulator")
-    st.caption("Explore hypothetical changes to heat exposure. This is a transparent sensitivity illustration, not an official forecast.")
-    if weather_current and weather_current.get("temperature_2m") is not None:
-        baseline = float(weather_current["temperature_2m"])
-    elif not weather.empty:
-        baseline = float(weather.iloc[0]["temperature_2m"])
+    st.caption("Explore a hypothetical sensitivity scenario. This changes selected inputs in the project heuristic; it is not a forecast.")
+    if weather_current:
+        delta_temp = st.slider("Apparent-temperature change (°C)", -2.0, 8.0, 2.0, 0.5)
+        particulate_factor = st.slider("Particulate concentration multiplier", 0.5, 2.0, 1.0, 0.1)
+        rainfall_factor = st.slider("Rainfall multiplier", 0.0, 2.0, 1.0, 0.1)
+        baseline = calculate_urban_stress(weather_current, air)
+        scenario_weather = dict(weather_current)
+        scenario_weather["apparent_temperature"] = float(scenario_weather.get("apparent_temperature", 30.0)) + delta_temp
+        scenario_weather["precipitation"] = float(scenario_weather.get("precipitation") or 0.0) * rainfall_factor
+        scenario_air = air.copy()
+        if not scenario_air.empty:
+            scenario_air["value"] = pd.to_numeric(scenario_air["value"], errors="coerce") * particulate_factor
+        projected = calculate_urban_stress(scenario_weather, scenario_air)
+        st.metric("Scenario temperature", f"{scenario_weather['apparent_temperature']:.1f} °C", f"{delta_temp:+.1f} °C")
+        left, right = st.columns(2)
+        left.metric("Baseline CityPulse Index", f"{baseline['index']:.1f}/100" if baseline.get("index") is not None else "Unavailable")
+        right.metric("Scenario CityPulse Index", f"{projected['index']:.1f}/100" if projected.get("index") is not None else "Unavailable")
+        if baseline.get("index") is None or projected.get("index") is None:
+            st.info("A composite scenario requires a recent PM2.5 or PM10 reading. The model will not invent missing air-quality data.")
+        else:
+            st.caption(f"Change in project index: {projected['index'] - baseline['index']:+.1f} points. This is a sensitivity calculation using the documented heuristic, not a prediction of actual city conditions.")
     else:
-        baseline = 30.0
-    delta = st.slider("Hypothetical temperature increase (°C)", 0.0, 8.0, 2.0, 0.5)
-    st.metric("Illustrative temperature", f"{baseline + delta:.1f} °C", f"+{delta:.1f} °C")
-    st.caption("The scenario changes temperature only; it does not model health outcomes or infrastructure impacts.")
+        st.info("Current weather inputs are unavailable, so the scenario cannot be calculated.")
+
 else:
     st.subheader("Methodology & data notes")
     st.markdown("""
