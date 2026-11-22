@@ -26,7 +26,7 @@ from ingestion.geo_layers import (
 )
 from analytics.spatial_interpolation import interpolate_station_surface
 from ingestion.landsat_uhi import fetch_landsat_surface_temperature_analysis
-from analytics.urban_stress import calculate_urban_stress
+from analytics.urban_stress import calculate_urban_stress, calculate_projected_urban_stress
 from analytics.scenario import build_scenario_weather
 from analytics.alerts import DEFAULT_ALERT_THRESHOLDS, build_alert_assessment
 from analytics.exposure import build_pollution_event_features
@@ -709,11 +709,13 @@ elif page == "Predictive Intelligence":
         "readings are aggregated as the median of available stations in 3-hour UTC bins. Mobile sensors and unsupported units are excluded."
     )
     pollutant_cols = st.columns(2)
+    pollutant_models = {}
     for column, pollutant in zip(pollutant_cols, ["PM2.5", "PM10"]):
         with column:
             st.markdown(f"#### {pollutant}")
             with st.spinner(f"Evaluating {pollutant} 24–72-hour models…"):
                 pollutant_model = load_pollutant_horizon_models(history, pollutant)
+            pollutant_models[pollutant] = pollutant_model
             if pollutant_model.get("status") != "ready":
                 st.info(
                     f"Insufficient history ({pollutant_model.get('samples', 0):,} usable 3-hour bins). "
@@ -734,6 +736,48 @@ elif page == "Predictive Intelligence":
                     "Validation": "Beat baseline" if passed else ("Did not beat baseline" if result.get("status") == "ready" else "Insufficient data"),
                 })
             st.dataframe(pd.DataFrame(pollutant_rows), use_container_width=True, hide_index=True)
+    st.markdown("### Projected CityPulse Index · combined environmental outlook")
+    st.caption(
+        "This combines only model forecasts that pass their own chronological persistence check. "
+        "The same experimental 50% heat + 35% particulate + 15% hourly-rainfall formula is used. "
+        "A horizon is withheld whenever a required component forecast is unavailable or fails validation."
+    )
+    projected_rows = []
+    for horizon in ["24", "48", "72"]:
+        weather_horizon = weather_models.get("horizons", {}).get(horizon, {})
+        def validated_weather_value(parameter):
+            result = weather_horizon.get(parameter, {})
+            return (
+                result.get("prediction")
+                if result.get("status") == "ready" and result.get("beats_persistence")
+                else None
+            )
+        pm_values = {}
+        for pollutant, key_name in [("PM2.5", "pm25"), ("PM10", "pm10")]:
+            result = pollutant_models.get(pollutant, {}).get("horizons", {}).get(horizon, {})
+            if result.get("status") == "ready" and result.get("beats_persistence"):
+                pm_values[key_name] = result.get("prediction")
+        assessment = calculate_projected_urban_stress(
+            {
+                "apparent_temperature": validated_weather_value("apparent_temperature"),
+                "precipitation": validated_weather_value("precipitation"),
+            },
+            pm_values.get("pm25"),
+            pm_values.get("pm10"),
+        )
+        projected_rows.append({
+            "Horizon": f"{horizon} h",
+            "Projected CityPulse Index": (
+                f"{assessment['index']:.1f}/100" if assessment.get("index") is not None else "Withheld"
+            ),
+            "Heat signal": assessment.get("heat_score"),
+            "Particulate signal": assessment.get("air_score"),
+            "Rain signal": assessment.get("rain_score"),
+            "PM forecasts used": ", ".join(pm_values.keys()) if pm_values else "None",
+            "Explanation": assessment.get("reason") or "All required components passed validation",
+        })
+    st.dataframe(pd.DataFrame(projected_rows), use_container_width=True, hide_index=True)
+
     st.warning(
         "These are experimental, city-sample estimates—not official AQI forecasts, regulatory warnings or individual exposure predictions. "
         "A forecast is withheld whenever its chronological holdout does not outperform persistence. Sparse monitoring history can leave some horizons unavailable."
