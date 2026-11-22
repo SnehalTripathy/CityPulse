@@ -82,7 +82,7 @@ This is the working project checklist. Check an item only after implementation a
 
 ## Priority 1–2 readiness note
 
-The City Comparison Engine and Advanced Zone Intelligence implementations are code-complete, with 60 automated tests passing. Priority 1 is not release-verified until the scheduled collector creates both remote archives and enough real multi-city dates accumulate. Priority 2 is not live-verified until the deployed station, green-space and Landsat views have been checked against their external providers. These real-data checks must remain open; do not replace them with synthetic observations.
+The City Comparison Engine and Advanced Zone Intelligence implementations are code-complete, with 61 automated tests passing. Priority 1 is not release-verified until the scheduled collector creates both remote archives and enough real multi-city dates accumulate. Priority 2 is not live-verified until the deployed station, green-space and Landsat views have been checked against their external providers. These real-data checks must remain open; do not replace them with synthetic observations.
 
 ## Final project closeout
 - [ ] Remove this master checklist (`PROJECT_ROADMAP.md`) from the public GitHub repository after all project features, release checks and documentation are complete.
@@ -103,7 +103,7 @@ The City Comparison Engine and Advanced Zone Intelligence implementations are co
 - [x] Distinguish modelled grid-cell weather, OpenAQ station measurements, provider forecasts, experimental CityPulse outputs and spatial estimates in the new comparison/zone views
 - [x] Show timestamps, units, source provenance, station-age ranges and missing/future-data states in comparison and zone views
 - [x] Confirm city timezone handling for every country (all registry timezones validated and passed to weather requests)
-- [x] Automated tests pass (60 tests passed in GitHub Actions; latest completed verified run 45041127349)
+- [x] Automated tests pass (61 tests passed in GitHub Actions; latest completed verified run 45041765718)
 - [x] README accurately describes released features and limitations
 - [ ] Streamlit deployment successfully starts and core pages render
-- [ ] Verify the live Zone Intelligence provider-backed layers after deployment; external OpenStreetMap/ESA/Landsat service availability is not covered by CI
+- [ ] Recheck OpenStreetMap green-space lookup after adding a non-default CityPulse User-Agent (live 406 observed before this fix); external OpenStreetMap/ESA/Landsat service availability is not covered by CI
