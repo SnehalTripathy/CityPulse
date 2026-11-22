@@ -45,13 +45,24 @@ def _fetch_location_latest(location: dict, api_key: str) -> list[dict]:
         for sensor in location.get("sensors", [])
         if sensor.get("id") is not None
     }
-    coords = location.get("coordinates") or {}
+    location_coords = location.get("coordinates") or {}
+    provider = location.get("provider") or {}
+    owner = location.get("owner") or {}
+    licenses = location.get("licenses") or []
+    license_names = ", ".join(
+        str(item.get("name")) for item in licenses
+        if isinstance(item, dict) and item.get("name")
+    )
     rows = []
 
     for measurement in payload.get("results", []):
         sensor = sensor_lookup.get(measurement.get("sensorsId"), {})
         parameter = sensor.get("parameter") or {}
         timestamp = measurement.get("datetime") or {}
+        # Latest records may include a measurement-specific position; prefer
+        # it over the station's fixed coordinate when available.
+        measurement_coords = measurement.get("coordinates") or {}
+        coords = measurement_coords or location_coords
         rows.append({
             "station": location.get("name") or "Unnamed station",
             "locality": location.get("locality"),
@@ -65,6 +76,12 @@ def _fetch_location_latest(location: dict, api_key: str) -> list[dict]:
             "latitude": coords.get("latitude"),
             "longitude": coords.get("longitude"),
             "distance_m": location.get("distance"),
+            "is_mobile": bool(location.get("isMobile", False)),
+            "is_monitor": bool(location.get("isMonitor", False)),
+            "timezone": location.get("timezone"),
+            "provider": provider.get("name") if isinstance(provider, dict) else str(provider or ""),
+            "owner": owner.get("name") if isinstance(owner, dict) else str(owner or ""),
+            "licenses": license_names,
         })
     return rows
 
