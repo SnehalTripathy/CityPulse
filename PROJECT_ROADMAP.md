@@ -27,8 +27,10 @@ This is the working project checklist. Check an item only after implementation a
   - [x] Screen for relative elevated clusters using at least six recent fixed stations with the same pollutant/unit; only multi-station high-value groups within 5 km are shown
   - [x] Add bounded IDW station-footprint estimates only within the convex hull, within 3 km of a recent fixed station, and only when leave-one-out MAE beats the median baseline
   - [x] Add multi-scene Landsat Collection 2 Level-2 surface-temperature contrast, using QA-masked thermal/reflectance pixels, urban/vegetated proxy pools and ST-QA uncertainty; label as exploratory, not climatological or official UHI
-  - [x] Add ESA WorldCover 2021 and OpenStreetMap green-space layers with straight-line proximity
-  - [x] Add bounded OSM walk-network estimates with snap-distance/route caveats; no public park entrance or citywide network completeness is claimed
+  - [x] Add OpenStreetMap green-space discovery with straight-line proximity and endpoint failover
+  - [ ] Verify live OpenStreetMap green-space lookup across fallback endpoints
+  - [x] Remove ESA WorldCover and NASA MODIS WMS overlays because their third-party map-proxy dependencies were unreliable
+  - [x] Remove optional walk-network routing from the user interface to avoid a second high-volume Overpass query and overclaiming citywide pedestrian access
 - [ ] **3. Environmental Health & Exposure**
   - [ ] Add population distribution and exposure overlays using reputable gridded data
   - [ ] Estimate population exposed to elevated heat or pollution with documented assumptions
@@ -60,7 +62,8 @@ This is the working project checklist. Check an item only after implementation a
 - [x] Add station-level drill-down and a sparse-coverage warning
 - [x] Add IDW pollution-surface estimates only inside the fixed-station convex hull, with six recent comparable stations, a 3 km nearest-station bound and leave-one-station-out MAE beating a median baseline
 - [x] Add QA-masked multi-scene Landsat surface-temperature contrast and NASA MODIS context imagery; exploratory urban/vegetated proxy contrast is not an official or seasonal UHI estimate
-- [x] Add ESA WorldCover 2021 land-cover imagery, OSM mapped green spaces and approximate walk-network park access
+- [x] Add OSM mapped green spaces with straight-line proximity and endpoint failover
+- [x] Remove unreliable third-party WorldCover/MODIS WMS overlays and optional high-volume walk-network routing
 - [ ] Add rainfall accumulation and flood-susceptibility layers from authoritative datasets
 - [ ] Add geospatial population exposure overlays
 
