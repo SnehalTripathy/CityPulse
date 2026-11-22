@@ -65,7 +65,7 @@ out center tags {int(limit)};
     return pd.DataFrame(rows, columns=["name", "category", "latitude", "longitude", "distance_km", "osm_type", "osm_id"])
 
 
-def _fetch_wms_image(endpoint: str, layer: str, latitude: float, longitude: float, date_value: str, width: int = 720, height: int = 560) -> bytes:
+def _fetch_wms_image(endpoint: str, layer: str, latitude: float, longitude: float, date_value: str | None = None, width: int = 720, height: int = 560) -> bytes:
     delta_lat = 0.055
     delta_lon = 0.055 / max(0.25, abs(__import__("math").cos(__import__("math").radians(latitude))))
     params = {
@@ -80,8 +80,9 @@ def _fetch_wms_image(endpoint: str, layer: str, latitude: float, longitude: floa
         "height": height,
         "format": "image/png",
         "transparent": "false",
-        "time": date_value,
     }
+    if date_value:
+        params["time"] = date_value
     response = requests.get(endpoint, params=params, timeout=REQUEST_TIMEOUT)
     response.raise_for_status()
     content_type = response.headers.get("content-type", "")
@@ -115,5 +116,5 @@ def fetch_esa_worldcover(
     """Return the ESA WorldCover 2021 10 m land-cover classification image."""
     return _fetch_wms_image(
         WORLD_COVER_WMS, "esa-worldcover-map-10m-2021-v2_map",
-        latitude, longitude, "2021-01-01",
+        latitude, longitude,
     )
