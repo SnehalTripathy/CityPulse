@@ -173,7 +173,7 @@ html, body, [class*="css"] { font-family:'DM Sans',sans-serif; }
  radial-gradient(ellipse at 70% 90%, rgba(251,113,133,.025), transparent 24%), var(--bg);
  color:var(--text);
 }
-.block-container { padding-top:4.7rem !important; padding-bottom:3rem !important; max-width:1560px; }
+.block-container { padding-top:1.25rem !important; padding-bottom:3rem !important; max-width:1560px; }
 h1,h2,h3,h4 { font-family:'Space Grotesk',sans-serif !important; letter-spacing:-.035em; color:#F8FAFF; }
 h1 { font-size:clamp(2rem,4vw,3.2rem) !important; line-height:1.12 !important; margin:.25rem 0 .55rem !important; }
 h2 { font-size:1.75rem !important; }
