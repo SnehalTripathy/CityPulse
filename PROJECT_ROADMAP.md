@@ -1,0 +1,96 @@
+# CityPulse 2.0 — Master Delivery Checklist
+
+This is the working project checklist. Check an item only after implementation and verification. "Data-dependent" items require suitable external data coverage and must not be represented with synthetic observations.
+
+## Current product foundation
+- [x] Multi-country and city selector with India pinned first and alphabetical city lists
+- [x] Global city directory with city-centre coordinates and timezones
+- [x] Live weather integration through Open-Meteo
+- [x] Nearby air-quality observations through OpenAQ (coverage varies)
+- [x] Experimental CityPulse Index with missing-data safeguards
+- [x] Historical observation collector and city-specific analytics
+- [x] Initial command centre, environmental analytics, predictive, anomaly, zone and scenario pages
+- [x] GitHub Actions CI and scheduled collection workflows
+- [x] Public-facing README and live Streamlit link
+
+## Five priority product capabilities
+- [ ] **1. City Comparison Engine**
+  - [ ] Compare 2–3 selected cities side by side
+  - [ ] Compare weather, PM2.5, PM10, rainfall and the experimental CityPulse Index
+  - [ ] Show pollutant availability, observation timestamps and fair-comparison caveats
+  - [ ] Add multi-city trend comparison once sufficient history exists
+- [ ] **2. Advanced Zone Intelligence**
+  - [ ] Interactive station map with pollutant-aware detail and station selection
+  - [ ] Show station density, coverage gaps and data freshness
+  - [ ] Add spatial pollution hotspot analysis only where station density supports it
+  - [ ] Add urban heat-island mapping using suitable satellite/land-surface data
+  - [ ] Add green-cover / vegetation layers and park accessibility where data supports them
+- [ ] **3. Environmental Health & Exposure**
+  - [ ] Add population distribution and exposure overlays using reputable gridded data
+  - [ ] Estimate population exposed to elevated heat or pollution with documented assumptions
+  - [ ] Add heat vulnerability / sensitive-population indicators where defensible data exists
+  - [ ] Show uncertainty and avoid clinical or individual health claims
+- [ ] **4. Smart Alerts & Recommendations**
+  - [ ] Configurable thresholds for heat, rainfall and pollutant readings
+  - [ ] Alert on observed threshold crossings and forecast risk, clearly distinguished
+  - [ ] Explain which measurements triggered an alert
+  - [ ] Recommend practical, source-grounded mitigation actions
+  - [ ] Add delivery channel and user preferences only after alert logic is validated
+- [ ] **5. Data Quality & Confidence Layer**
+  - [ ] Per-source freshness and last-observed timestamp
+  - [ ] Sensor/station coverage and missing-data indicators
+  - [ ] Unit, timestamp and plausible-range validation
+  - [ ] Confidence/coverage labels based on observable evidence, not invented probabilities
+  - [ ] Preserve provenance for every displayed metric
+
+## Phase 1 — Better intelligence
+- [ ] Normalize pollutant names and units across sources
+- [ ] Display pollutant-level analytics and time freshness
+- [ ] Separate official AQI values (where an official feed exists) from the experimental CityPulse Index
+- [ ] Build comparable city metrics with common time windows and units
+- [ ] Add source provenance and quality indicators to dashboard metrics
+- [ ] Expand historical views after validating persistent archive access
+
+## Phase 2 — Geospatial intelligence
+- [ ] Replace the basic station pin view with a richer interactive station map
+- [ ] Add station-level drill-down and spatial coverage gaps
+- [ ] Add pollution hotspot interpolation only when station density and validation permit
+- [ ] Add satellite-derived land-surface temperature / urban heat-island layers
+- [ ] Add vegetation / tree-cover / green-space layers
+- [ ] Add rainfall accumulation and flood-susceptibility layers from authoritative datasets
+- [ ] Add geospatial population exposure overlays
+
+## Phase 3 — Predictive intelligence
+- [ ] Build a validated multi-variable 24–72 hour stress forecast
+- [ ] Forecast pollutant deterioration only where a suitable history/feed exists
+- [ ] Model heatwave and heavy-rainfall risk from appropriate inputs
+- [ ] Use time-ordered evaluation, persistence baselines and leakage checks
+- [ ] Add model monitoring, drift checks and explainability
+- [ ] Display prediction intervals / uncertainty when calibrated and supported
+
+## Phase 4 — Actionable intelligence
+- [ ] Explain why a city's stress signal changed
+- [ ] Add threshold-based heat, pollution and rainfall alerts
+- [ ] Add city/zone-specific recommendations with supporting rationale
+- [ ] Add environmental summary reports and export
+- [ ] Add population exposure / planning insights for policymakers
+- [ ] Add alert preferences and delivery integrations after validation
+
+## Five-hour implementation sprint — target 12:30 AM IST, 23 November 2026
+- [ ] Fix global-city timezone handling in weather requests
+- [ ] Build a 2–3 city comparison view using live provider responses
+- [ ] Add pollutant breakdown, station count and reading freshness to air-quality analytics
+- [ ] Upgrade Zone Intelligence station map and station drill-down
+- [ ] Add a transparent data freshness / coverage panel
+- [ ] Add or update tests for the new data and comparison logic
+- [ ] Run CI and resolve regressions
+- [ ] Verify the deployed Streamlit app where deployment status is observable
+
+## Release quality gates
+- [ ] No synthetic or silently imputed live environmental measurements
+- [ ] Distinguish modelled weather, sensor measurements, provider forecasts and CityPulse model outputs
+- [ ] Show timestamps, units, sources and missing-data states
+- [ ] Confirm city timezone handling for every country
+- [ ] Automated tests pass
+- [ ] README accurately describes released features and limitations
+- [ ] Streamlit deployment successfully starts and core pages render
