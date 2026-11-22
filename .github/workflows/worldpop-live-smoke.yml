@@ -2,6 +2,13 @@ name: WorldPop Live API Smoke Check
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "ingestion/worldpop.py"
+      - "scripts/worldpop_live_smoke.py"
+      - ".github/workflows/worldpop-live-smoke.yml"
   schedule:
     - cron: "23 6 * * 1"
 
