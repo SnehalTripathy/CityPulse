@@ -36,6 +36,9 @@ def summarize_air_quality(
         now = now.tz_convert("UTC")
 
     station_column = "location_id" if "location_id" in frame.columns else "station"
+    if station_column == "location_id" and "station" in frame.columns:
+        frame["_station_key"] = frame["location_id"].where(frame["location_id"].notna(), frame["station"])
+        station_column = "_station_key"
     if station_column not in frame.columns:
         frame["station"] = "Unknown station"
         station_column = "station"
