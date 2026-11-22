@@ -31,6 +31,12 @@ def test_fetches_latest_sensor_values(monkeypatch):
                 "locality": "Bengaluru",
                 "coordinates": {"latitude": 12.97, "longitude": 77.59},
                 "distance": 1200,
+                "isMobile": False,
+                "isMonitor": True,
+                "timezone": "Asia/Kolkata",
+                "provider": {"name":"Provider A"},
+                "owner": {"name":"City Agency"},
+                "licenses": [{"name":"CC BY 4.0"}],
                 "sensors": [{
                     "id": 501,
                     "parameter": {"name": "pm25", "units": "µg/m³"},
@@ -58,3 +64,8 @@ def test_fetches_latest_sensor_values(monkeypatch):
     assert row["value"] == 28.5
     assert row["sensor_id"] == 501
     assert row["datetime_local"] == "2026-11-22T15:30:00+05:30"
+    assert row["is_mobile"] is False
+    assert row["is_monitor"] is True
+    assert row["provider"] == "Provider A"
+    assert row["owner"] == "City Agency"
+    assert row["licenses"] == "CC BY 4.0"
