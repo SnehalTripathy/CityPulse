@@ -713,16 +713,26 @@ elif page == "Zone Intelligence":
         st.plotly_chart(fig, use_container_width=True)
         if show_interpolation:
             if interpolation_status == "ready":
-                validation_cols = st.columns(3)
-                validation_cols[0].metric("Stations used", f"{interpolation_details['station_count']:,}")
+                validation_cols = st.columns(4)
+                validation_cols[0].metric("Fixed stations used", f"{interpolation_details['station_count']:,}")
                 validation_cols[1].metric("Supported grid cells", f"{interpolation_details['grid_cells']:,}")
-                validation_cols[2].metric("Leave-one-station-out MAE", f"{interpolation_details['leave_one_out_mae']:.2f} {selected_unit}" if interpolation_details["leave_one_out_mae"] is not None else "Unavailable")
+                validation_cols[2].metric("IDW leave-one-out MAE", f"{interpolation_details['leave_one_out_mae']:.2f} {selected_unit}" if interpolation_details["leave_one_out_mae"] is not None else "Unavailable")
+                validation_cols[3].metric("Median-baseline MAE", f"{interpolation_details['median_baseline_mae']:.2f} {selected_unit}" if interpolation_details["median_baseline_mae"] is not None else "Unavailable")
                 st.caption(
                     "Inverse-distance weighting (power 2), restricted to the convex hull of recent fixed stations and within 3 km of a station. "
-                    "The leave-one-station-out error is an internal diagnostic, not a confidence interval. Estimated cells are not measurements."
+                    "The surface is shown only when leave-one-station-out MAE is lower than a citywide-median baseline. "
+                    "This is a spatial cross-validation diagnostic, not a confidence interval. Estimated cells are not measurements."
                 )
             else:
-                st.info(f"Interpolation withheld: {interpolation_status.replace('_', ' ')}. At least six recent, geocoded, distinct fixed stations with the same pollutant and unit are required.")
+                if interpolation_status == "failed_cross_validation":
+                    st.info(
+                        f"Interpolation withheld: IDW did not outperform the median baseline "
+                        f"(IDW MAE {interpolation_details['leave_one_out_mae']:.2f} vs "
+                        f"baseline MAE {interpolation_details['median_baseline_mae']:.2f} {selected_unit}). "
+                        "The station data are shown without a modelled surface."
+                    )
+                else:
+                    st.info(f"Interpolation withheld: {interpolation_status.replace('_', ' ')}. At least six recent, geocoded, distinct fixed stations with the same pollutant and unit are required.")
     elif geo.empty:
         st.info("No geocoded OpenAQ stations are available for this city. The map cannot show measured neighbourhood pollution.")
     elif map_source.empty:
