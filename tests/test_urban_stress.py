@@ -49,3 +49,36 @@ def test_stale_sensor_reading_is_excluded():
         now=now,
     )
     assert result["index"] is None
+
+
+
+def test_index_normalises_mg_units_and_excludes_mobile_stale_and_future_rows():
+    now = pd.Timestamp("2026-11-22T18:00:00Z")
+    air = pd.DataFrame([
+        {"parameter":"pm25","unit":"mg/m³","value":0.020,"datetime_utc":"2026-11-22T17:00:00Z","location_id":1,"is_mobile":False},
+        {"parameter":"PM₂.₅","unit":"µg/m³","value":30,"datetime_utc":"2026-11-22T16:00:00Z","location_id":2,"is_mobile":False},
+        {"parameter":"pm25","unit":"µg/m³","value":900,"datetime_utc":"2026-11-20T00:00:00Z","location_id":3,"is_mobile":False},
+        {"parameter":"pm25","unit":"µg/m³","value":1000,"datetime_utc":"2026-11-22T17:30:00Z","location_id":4,"is_mobile":True},
+        {"parameter":"pm25","unit":"µg/m³","value":2000,"datetime_utc":"2026-11-23T05:00:00Z","location_id":5,"is_mobile":False},
+    ])
+    result = calculate_urban_stress(
+        {"apparent_temperature":30,"precipitation":0},
+        air,
+        now=now,
+    )
+    # Fixed stations contribute 20 and 30 µg/m³; their median is 25.
+    assert result["pm25_median"] == 25
+    assert result["air_score"] == round(25 / 60 * 100, 1)
+
+
+def test_index_does_not_use_mobile_station_values():
+    now = pd.Timestamp("2026-11-22T18:00:00Z")
+    air = pd.DataFrame([{
+        "parameter":"pm25","unit":"µg/m³","value":80,
+        "datetime_utc":"2026-11-22T17:00:00Z","location_id":1,"is_mobile":"True",
+    }])
+    result = calculate_urban_stress(
+        {"apparent_temperature":30,"precipitation":0}, air, now=now
+    )
+    assert result["index"] is None
+    assert result["air_score"] is None
