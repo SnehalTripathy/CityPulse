@@ -604,7 +604,7 @@ elif page == "Zone Intelligence":
         {"station_count":0, "geocoded_station_count":0, "nearest_station_km":None,
          "median_station_distance_km":None, "farthest_station_km":None,
          "occupied_grid_cells":0, "fresh_stations":0, "recent_stations":0,
-         "stale_stations":0, "query_radius_km":25.0},
+         "stale_stations":0, "fixed_stations":0, "mobile_stations":0, "query_radius_km":25.0},
         pd.DataFrame(), pd.DataFrame()
     )
     if not air.empty and {"latitude", "longitude"}.issubset(air.columns):
@@ -614,9 +614,9 @@ elif page == "Zone Intelligence":
 
     coverage_cols = st.columns(4)
     coverage_cols[0].metric("Returned stations", f"{coverage['station_count']:,}")
-    coverage_cols[1].metric("Geocoded stations", f"{coverage['geocoded_station_count']:,}")
-    coverage_cols[2].metric("Fresh stations (≤6 h)", f"{coverage['fresh_stations']:,}")
-    coverage_cols[3].metric("Occupied 5 km cells", f"{coverage['occupied_grid_cells']:,}")
+    coverage_cols[1].metric("Fixed stations", f"{coverage['fixed_stations']:,}")
+    coverage_cols[2].metric("Mobile stations", f"{coverage['mobile_stations']:,}")
+    coverage_cols[3].metric("Fresh stations (≤6 h)", f"{coverage['fresh_stations']:,}")
     st.caption(
         f"Coverage describes OpenAQ's returned sample (up to 12 nearby locations within an approximately 25 km query radius). "
         f"Occupied cells show where returned stations fall; empty cells are not treated as confirmed monitoring gaps."
@@ -624,7 +624,7 @@ elif page == "Zone Intelligence":
     distance_cols = st.columns(3)
     distance_cols[0].metric("Nearest returned station", f"{coverage['nearest_station_km']:.1f} km" if coverage["nearest_station_km"] is not None else "Unavailable")
     distance_cols[1].metric("Median station distance", f"{coverage['median_station_distance_km']:.1f} km" if coverage["median_station_distance_km"] is not None else "Unavailable")
-    distance_cols[2].metric("Stale stations (>48 h)", f"{coverage['stale_stations']:,}")
+    distance_cols[2].metric("Occupied 5 km cells", f"{coverage['occupied_grid_cells']:,}")
 
     parameters = sorted(geo["parameter"].dropna().astype(str).unique().tolist()) if not geo.empty else []
     selected_parameter = st.selectbox("Map pollutant", parameters, key="zone_map_parameter") if parameters else None
@@ -652,7 +652,7 @@ elif page == "Zone Intelligence":
         fig = px.scatter_mapbox(
             map_data, lat="latitude", lon="longitude", color="value",
             hover_name="station",
-            hover_data=[column for column in ["parameter", "value", "unit", "datetime_local", "datetime_utc", "distance_m"] if column in map_data.columns],
+            hover_data=[column for column in ["parameter", "value", "unit", "datetime_local", "datetime_utc", "distance_m", "is_mobile", "provider"] if column in map_data.columns],
             color_continuous_scale="Turbo", zoom=9, height=560,
         )
         if interpolation_status == "ready" and not interpolation_frame.empty:
@@ -711,7 +711,7 @@ elif page == "Zone Intelligence":
         st.info("Station-level inventory is unavailable because no timestamped station records were returned.")
     else:
         st.dataframe(
-            station_inventory[["station", "distance_km", "latest_utc", "age_hours", "freshness", "pollutant_count", "reading_count"]].style.format({"distance_km":"{:.2f}", "age_hours":"{:.1f}"}),
+            station_inventory[["station", "distance_km", "latest_utc", "age_hours", "freshness", "is_mobile", "pollutant_count", "reading_count"]].style.format({"distance_km":"{:.2f}", "age_hours":"{:.1f}"}),
             use_container_width=True, hide_index=True,
         )
         st.caption("Fresh ≤6 hours · Recent 6–48 hours · Stale >48 hours. These labels describe the newest provider timestamp per returned station, not instrument calibration.")
@@ -721,7 +721,7 @@ elif page == "Zone Intelligence":
         st.caption("Grid coordinates are relative to the selected city centre. Only occupied cells are listed; this is not a city-boundary coverage or interpolation map.")
 
     st.markdown("### Observed pollution cluster screening")
-    st.caption("Screens for a cluster of relatively elevated, recent station values: at least six stations with the same pollutant/unit, each observed within six hours; high values must be in a multi-station group within 5 km.")
+    st.caption("Screens for a cluster of relatively elevated, recent fixed-station values: at least six fixed stations with the same pollutant/unit, each observed within six hours; high values must be in a multi-station group within 5 km.")
     if selected_parameter and selected_unit:
         hotspot_status, hotspot_stations, hotspot_sample_count = detect_observed_hotspot_clusters(
             geo, selected_parameter, selected_unit
