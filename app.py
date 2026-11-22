@@ -688,7 +688,7 @@ elif page == "Predictive Intelligence":
                             f"{result['change']:+.2f} {weather_units.get(parameter, '')}"
                             if passed else "—"
                         ),
-                        "Direction": result.get("direction", "Insufficient history") if result.get("status") == "ready" else "Insufficient history",
+                        "Direction": result.get("direction") if passed else ("Withheld — baseline not beaten" if result.get("status") == "ready" else "Insufficient history"),
                         "Holdout MAE": result.get("mae"),
                         "Persistence MAE": result.get("persistence_mae"),
                         "Validation": "Beat baseline" if passed else ("Did not beat baseline" if result.get("status") == "ready" else "Insufficient data"),
@@ -730,7 +730,7 @@ elif page == "Predictive Intelligence":
                     "Horizon": f"{horizon} h",
                     "Forecast (µg/m³)": f"{result['prediction']:.2f}" if passed else "Withheld",
                     "Change": f"{result['change']:+.2f}" if passed else "—",
-                    "Direction": result.get("direction", "Insufficient history") if result.get("status") == "ready" else "Insufficient history",
+                    "Direction": result.get("direction") if passed else ("Withheld — baseline not beaten" if result.get("status") == "ready" else "Insufficient history"),
                     "Holdout MAE": result.get("mae"),
                     "Baseline MAE": result.get("persistence_mae"),
                     "Validation": "Beat baseline" if passed else ("Did not beat baseline" if result.get("status") == "ready" else "Insufficient data"),
