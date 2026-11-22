@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 
 
@@ -27,14 +29,27 @@ def build_pollution_event_features(
     report. Mobile sensors, incompatible units, future timestamps and stale
     readings are excluded.
     """
-    required = {"parameter", "unit", "value", "datetime_utc", "latitude", "longitude"}
     empty = {"type": "FeatureCollection", "features": []}
-    if air.empty or not required.issubset(air.columns):
+    pollutant_token = _parameter_token(pollutant)
+    if pollutant_token not in {"pm25", "pm10"}:
+        raise ValueError("Pollutant must be PM2.5 or PM10.")
+    try:
+        threshold = float(threshold_ug_m3)
+        age_limit = float(max_age_hours)
+    except (TypeError, ValueError):
+        raise ValueError("Threshold and maximum observation age must be numeric.") from None
+    if not math.isfinite(threshold) or threshold < 0:
+        raise ValueError("Pollutant threshold must be a finite, non-negative value.")
+    if not math.isfinite(age_limit) or not 0 <= age_limit <= 720:
+        raise ValueError("Maximum observation age must be between 0 and 720 hours.")
+
+    required = {"parameter", "unit", "value", "datetime_utc", "latitude", "longitude"}
+    if air is None or air.empty or not required.issubset(air.columns):
         return empty
 
     frame = air.copy()
     frame["parameter_token"] = frame["parameter"].map(_parameter_token)
-    frame = frame.loc[frame["parameter_token"].isin({pollutant, pollutant + "mass"})].copy()
+    frame = frame.loc[frame["parameter_token"].isin({pollutant_token, pollutant_token + "mass"})].copy()
     frame["unit_token"] = frame["unit"].map(_unit_token)
     frame = frame.loc[frame["unit_token"].isin(UNIT_TO_UG_M3)].copy()
     frame["value"] = pd.to_numeric(frame["value"], errors="coerce") * frame["unit_token"].map(UNIT_TO_UG_M3)
@@ -48,9 +63,12 @@ def build_pollution_event_features(
     else:
         current = current.tz_convert("UTC")
     frame = frame.loc[
-        (frame["datetime_utc"] >= current - pd.Timedelta(hours=max_age_hours))
+        (frame["datetime_utc"] >= current - pd.Timedelta(hours=age_limit))
         & (frame["datetime_utc"] <= current + pd.Timedelta(minutes=15))
-        & (frame["value"] >= float(threshold_ug_m3))
+        & (frame["value"] >= threshold)
+        & frame["value"].map(math.isfinite)
+        & frame["latitude"].between(-90, 90)
+        & frame["longitude"].between(-180, 180)
     ].copy()
     if "is_mobile" in frame.columns:
         mobile = frame["is_mobile"].map(lambda value: str(value).strip().lower() in {"true", "1", "yes", "y"})
