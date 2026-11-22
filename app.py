@@ -24,7 +24,7 @@ from ingestion.landsat_uhi import fetch_landsat_surface_temperature_analysis
 from analytics.urban_stress import calculate_urban_stress
 from ml.anomaly import detect_recent_weather_anomaly
 from ml.forecasting import train_next_observation_model
-from utils.storage import ensure_data_dirs, load_observations
+from utils.storage import ensure_data_dirs, load_observations, load_daily_observations
 
 st.set_page_config(
     page_title="CityPulse | Urban Stress Intelligence",
@@ -56,8 +56,30 @@ def load_history() -> pd.DataFrame:
         pass
     return local
 
+@st.cache_data(ttl=600, show_spinner=False)
+def load_daily_history() -> pd.DataFrame:
+    local = load_daily_observations()
+    if not local.empty:
+        return local
+    archive_url = "https://raw.githubusercontent.com/SnehalTripathy/CityPulse/main/data/processed/daily_city_observations.csv"
+    try:
+        response = requests.get(archive_url, timeout=(4, 25))
+        if response.status_code == 200 and response.content:
+            remote = pd.read_csv(io.BytesIO(response.content))
+            if "date" in remote.columns:
+                remote["date"] = pd.to_datetime(remote["date"], errors="coerce", utc=True)
+            for column in ["median_value", "reading_count", "latitude", "longitude"]:
+                if column in remote.columns:
+                    remote[column] = pd.to_numeric(remote[column], errors="coerce")
+            return remote
+    except (requests.RequestException, OSError, pd.errors.ParserError, ValueError):
+        pass
+    return local
+
 history = load_history()
 all_history = history.copy()
+daily_history = load_daily_history()
+all_daily_history = daily_history.copy()
 
 st.markdown("""
 <style>
@@ -327,19 +349,28 @@ if page == "City Comparison":
         trend_days = st.selectbox("History window", [7, 30, 90, 180], index=1, format_func=lambda value: f"Last {value} days", key="comparison_trend_days")
     if len(comparison_cities) < 2:
         st.info("Choose at least two cities above to compare historical trends.")
-    elif all_history.empty:
-        st.info("The shared observation archive is not available in this deployment yet. Historical comparisons will appear as scheduled collection builds city records.")
+    elif all_history.empty and all_daily_history.empty:
+        st.info("The shared observation archive is not available in this deployment yet. The scheduled collector builds raw observations and a compact 365-day station/day archive; charts appear as real data accumulates.")
     else:
+        trend_source = all_daily_history if not all_daily_history.empty else all_history
         trend_frame, trend_coverage = build_city_trend_frame(
-            all_history, comparison_cities, trend_metric, days=trend_days
+            trend_source, comparison_cities, trend_metric, days=trend_days
         )
         if trend_frame.empty:
             st.info(f"No archived {trend_metric} observations were found for these cities in the selected {trend_days}-day window.")
         else:
             st.markdown("#### History coverage")
-            st.dataframe(trend_coverage, use_container_width=True, hide_index=True)
             eligible_cities = trend_coverage.loc[trend_coverage["Days with data"] >= 3, "City"].tolist()
+            common_days = 0
             if len(eligible_cities) >= 2:
+                shared = trend_frame.loc[trend_frame["city"].isin(eligible_cities)].pivot(
+                    index="date", columns="city", values="value"
+                )
+                common_days = int(shared.dropna(subset=eligible_cities).shape[0])
+            trend_coverage["Shared observed days"] = common_days
+            st.dataframe(trend_coverage, use_container_width=True, hide_index=True)
+            st.metric("Shared observed UTC days across compared cities", f"{common_days:,}")
+            if len(eligible_cities) >= 2 and common_days >= 3:
                 chart_data = trend_frame.loc[trend_frame["city"].isin(eligible_cities)].copy()
                 fig = px.line(
                     chart_data, x="date", y="value", color="city", markers=True,
@@ -351,7 +382,7 @@ if page == "City Comparison":
                 st.plotly_chart(fig, use_container_width=True)
                 st.caption("Each point is a daily median. PM values aggregate station-day medians and retain only mass-concentration units (µg/m³). Weather values are Open-Meteo modelled grid-cell data. Daily coverage is shown above; trend lines do not imply equal sensor density.")
             else:
-                st.info("At least three observed UTC days in each of two cities are needed before a trend is drawn. The archive is still building or coverage is uneven.")
+                st.info("At least two cities with three observed days each and three shared UTC dates are required before a comparative trend is drawn. The archive is still building or date coverage is uneven.")
 elif page == "Air Quality Intelligence":
     st.subheader("Air quality intelligence")
     if air.empty:
