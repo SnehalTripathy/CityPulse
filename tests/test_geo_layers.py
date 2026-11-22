@@ -1,6 +1,10 @@
 from datetime import date
 
-from ingestion.geo_layers import fetch_nasa_land_surface_temperature, fetch_green_spaces
+from ingestion.geo_layers import (
+    OVERPASS_HEADERS,
+    fetch_nasa_land_surface_temperature,
+    fetch_green_spaces,
+)
 
 
 class FakeResponse:
@@ -17,6 +21,21 @@ class FakeResponse:
                 {"type": "way", "id": 2, "center": {"lat": 12.2, "lon": 77.2}, "tags": {"landuse": "forest"}},
             ]
         }
+
+
+def test_overpass_request_identifies_citypulse_with_a_non_default_user_agent(monkeypatch):
+    captured = {}
+
+    def fake_post(endpoint, data=None, headers=None, timeout=None):
+        captured.update(headers or {})
+        return FakeResponse()
+
+    monkeypatch.setattr("ingestion.geo_layers.requests.post", fake_post)
+    result = fetch_green_spaces(12.0, 77.0)
+    assert len(result) == 2
+    assert captured["User-Agent"] == OVERPASS_HEADERS["User-Agent"]
+    assert "SnehalTripathy/CityPulse" in captured["User-Agent"]
+    assert captured["Accept"] == "application/json"
 
 
 def test_green_space_parser_keeps_osm_source_fields(monkeypatch):
