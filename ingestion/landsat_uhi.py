@@ -117,7 +117,7 @@ def fetch_landsat_surface_temperature_analysis(
         "urban_pixels": 0,
         "reference_pixels": 0,
         "valid_pixels": 0,
-        "pixel_size_m": 100,
+        "pixel_size_m": 200,
     }
     empty = pd.DataFrame(columns=["latitude", "longitude", "temperature_c", "ndvi", "distance_km", "surface_class"])
     radius_lat = float(radius_km) / 111.32
@@ -151,8 +151,8 @@ def fetch_landsat_surface_temperature_analysis(
             continue
         scene_cloud = item.properties.get("eo:cloud_cover")
         try:
-            width = 180
-            height = 180
+            width = 250
+            height = 250
             lst_dn, transform = _read_asset_on_grid(
                 assets["lwir11"].href, bbox, width, height, Resampling.bilinear
             )
@@ -207,7 +207,7 @@ def fetch_landsat_surface_temperature_analysis(
 
             # Downsample valid observations for a responsive map; keep measured
             # raster values, not an interpolated surface.
-            sample_mask = valid & ((rows % 2) == 0) & ((cols % 2) == 0)
+            sample_mask = valid & ((rows % 3) == 0) & ((cols % 3) == 0)
             sample_classes = np.where(
                 (distance <= 5) & (ndvi <= 0.20),
                 "Urban-core proxy",
@@ -232,7 +232,7 @@ def fetch_landsat_surface_temperature_analysis(
                 "acquired": item.properties.get("datetime"),
                 "cloud_cover_scene_pct": float(scene_cloud) if scene_cloud is not None else None,
                 "valid_pixels": int(valid.sum()),
-                "pixel_size_m": 100,
+                "pixel_size_m": round((2.0 * float(radius_km) * 1000.0) / width, 1),
                 "source": LANDSAT_SOURCE,
             })
             return pixels_map, diagnostics
