@@ -11,9 +11,40 @@ from scipy.spatial import cKDTree
 import pandas as pd
 import requests
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
-NASA_GIBS_WMS = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi"
-WORLD_COVER_WMS = "https://mapproxy.terrascope.be/mapproxy/service"
+OVERPASS_URLS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+)
+OVERPASS_HEADERS = {
+    "User-Agent": "CityPulse/1.0 (public urban environmental research dashboard)",
+    "Accept": "application/json",
+}
+
+class OverpassUnavailable(RuntimeError):
+    """Raised when all configured public Overpass endpoints are unavailable."""
+
+
+def _post_overpass(query: str, timeout: tuple[int, int]) -> requests.Response:
+    failures = []
+    for endpoint in OVERPASS_URLS:
+        try:
+            response = requests.post(
+                endpoint,
+                data={"data": query},
+                headers=OVERPASS_HEADERS,
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            return response
+        except requests.RequestException as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            failures.append(f"{status or type(exc).__name__}")
+    summary = ", ".join(failures)
+    raise OverpassUnavailable(
+        "OpenStreetMap's public query services are temporarily busy or unavailable "
+        f"(tried {len(OVERPASS_URLS)} endpoints; responses: {summary}). Please retry later."
+    )
 REQUEST_TIMEOUT = (5, 30)
 
 
@@ -41,8 +72,7 @@ def fetch_green_spaces(
 );
 out center tags {int(limit)};
 """
-    response = requests.post(OVERPASS_URL, data={"data": query}, timeout=REQUEST_TIMEOUT)
-    response.raise_for_status()
+    response = _post_overpass(query, REQUEST_TIMEOUT)
     payload = response.json()
     rows = []
     for element in payload.get("elements", []):
@@ -68,61 +98,6 @@ out center tags {int(limit)};
             ))),
         })
     return pd.DataFrame(rows, columns=["name", "category", "latitude", "longitude", "distance_km", "osm_type", "osm_id"])
-
-
-def _fetch_wms_image(endpoint: str, layer: str, latitude: float, longitude: float, date_value: str | None = None, width: int = 720, height: int = 560) -> bytes:
-    delta_lat = 0.055
-    delta_lon = 0.055 / max(0.25, abs(math.cos(math.radians(latitude))))
-    params = {
-        "service": "WMS",
-        "version": "1.1.1",
-        "request": "GetMap",
-        "layers": layer,
-        "styles": "",
-        "srs": "EPSG:4326",
-        "bbox": f"{longitude-delta_lon},{latitude-delta_lat},{longitude+delta_lon},{latitude+delta_lat}",
-        "width": width,
-        "height": height,
-        "format": "image/png",
-        "transparent": "false",
-    }
-    if date_value:
-        params["time"] = date_value
-    response = requests.get(endpoint, params=params, timeout=REQUEST_TIMEOUT)
-    response.raise_for_status()
-    content_type = response.headers.get("content-type", "")
-    if not content_type.lower().startswith("image/"):
-        raise RuntimeError(f"Map service did not return an image (content type: {content_type or 'unknown'}).")
-    return response.content
-
-
-def fetch_nasa_land_surface_temperature(
-    latitude: float,
-    longitude: float,
-    observation_date: date | None = None,
-) -> tuple[bytes, str]:
-    """Return NASA GIBS MODIS Terra daytime LST imagery for a selected date.
-
-    The PNG is a visualization, not a numeric LST raster. Cloud gaps and the
-    satellite's daytime overpass mean it is not by itself a city UHI estimate.
-    """
-    selected_date = observation_date or (date.today() - timedelta(days=2))
-    image = _fetch_wms_image(
-        NASA_GIBS_WMS, "MODIS_Terra_Land_Surface_Temp_Day",
-        latitude, longitude, selected_date.isoformat(),
-    )
-    return image, selected_date.isoformat()
-
-
-def fetch_esa_worldcover(
-    latitude: float,
-    longitude: float,
-) -> bytes:
-    """Return the ESA WorldCover 2021 10 m land-cover classification image."""
-    return _fetch_wms_image(
-        WORLD_COVER_WMS, "esa-worldcover-map-10m-2021-v2_map",
-        latitude, longitude,
-    )
 
 
 WALKABLE_HIGHWAYS = {
@@ -309,12 +284,7 @@ out body;
 >;
 out skel qt;
 """
-    response = requests.post(
-        OVERPASS_URL,
-        data={"data": query},
-        timeout=(5, 45),
-    )
-    response.raise_for_status()
+    response = _post_overpass(query, (5, 45))
     payload = response.json()
     elements = payload.get("elements", [])
     return calculate_walking_access_from_osm(
