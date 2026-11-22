@@ -65,6 +65,21 @@ The current heuristic weights these components at 50%, 35% and 15%, respectively
 - Rainfall context is the selected city's Open-Meteo hourly precipitation forecast summed over the next 24/72 hours. It is a modelled city grid-cell forecast, not zone-level rainfall. OpenStreetMap water features are community-mapped centre points rather than a verified, complete drainage or hydrography network.
 - Spatial interpolation uses inverse-distance weighting within the Delaunay convex hull of eligible fixed stations, with a 3 km nearest-station limit and leave-one-station-out comparison against a median baseline. It is shown only when IDW performs better on that diagnostic.
 
+## Alert persistence and email configuration
+
+The Smart Alerts page stores per-city threshold preferences and deduplicated alert history in SQLite. By default the database is written to `data/processed/citypulse_state.sqlite3`; set `CITYPULSE_STATE_DB` to a path on a persistent mounted volume when deploying. Ephemeral container filesystems can be reset during redeployment, so a persistent volume is required for durable history across deployments. Preferences are application-level per city, not per authenticated user; the current app does not implement user accounts.
+
+Email notifications are opt-in per city and sent only to the deployment administrator address. Configure these Streamlit secrets or environment variables:
+
+- `CITYPULSE_SMTP_HOST`
+- `CITYPULSE_SMTP_PORT`
+- `CITYPULSE_SMTP_FROM`
+- `CITYPULSE_ALERT_EMAIL`
+- Optional: `CITYPULSE_SMTP_USERNAME`
+- Optional: `CITYPULSE_SMTP_PASSWORD`
+
+Do not commit SMTP credentials or recipient details to the repository. Delivery is attempted only for newly recorded alert events. A failed delivery is recorded in alert history and is not automatically retried. SMTP must permit STARTTLS on the configured port.
+
 ## Important notes
 
 - Weather values are modelled grid-cell data, not street-level measurements. CityPulse's 24–72-hour experimental models use archived Open-Meteo observations and fixed-station OpenAQ pollutant samples; they are suppressed whenever they fail a chronological holdout comparison against persistence. The projected CityPulse Index combines validated apparent-temperature, hourly-rainfall and PM forecasts using the existing experimental 50/35/15 weighting. Model availability depends on the quantity, regularity and freshness of actual city history.
@@ -78,6 +93,6 @@ The current heuristic weights these components at 50%, 35% and 15%, respectively
 - Predictive and anomaly-detection features are experimental and are shown only when their data requirements are met.
 - Environmental Health & Exposure uses WorldPop Global2 modelled population estimates. The default display year is 2025; the 1 km map aggregates the source grid to 1 km cells, while population rings and demographic groups are computed for a 10 km geometric buffer around the configured city-centre coordinate. This is not a municipal boundary or live census. Under-5 and age-65+ totals are demographic context, not a validated heat-vulnerability score.
 - WorldPop proximity exposure uses the documented distance-decay method (p=1) around the selected modelled heat grid point or threshold-crossing fixed monitoring stations. For multiple pollution features, each person is assigned to the nearest feature to avoid double counting. These figures are not confirmed affected people or evidence of health impacts.
-- Smart Alerts uses user-configurable prototype triggers (defaults: apparent temperature 40 °C, preceding-hour rainfall 20 mm, PM2.5 60 µg/m³ and PM10 100 µg/m³). Current Open-Meteo conditions, its next-24-hour forecast and recent fixed OpenAQ station medians are reported as separate trigger types. PM medians use readings no more than 24 hours old and compatible mass units. These triggers are not official warnings or regulatory AQI thresholds. Threshold settings are session-only; email, SMS and push delivery are not implemented.
+- Smart Alerts uses user-configurable prototype triggers (defaults: apparent temperature 40 °C, preceding-hour rainfall 20 mm, PM2.5 60 µg/m³ and PM10 100 µg/m³). Current Open-Meteo conditions, its next-24-hour forecast and recent fixed OpenAQ station medians are reported as separate trigger types. PM medians use readings no more than 24 hours old and compatible mass units. These triggers are not official warnings or regulatory AQI thresholds. Alert thresholds and deduplicated alert history are stored in a local SQLite state database. Optional email delivery is supported through deployment-configured SMTP settings; SMS and push delivery are not included.
 - CityPulse is an exploratory information platform, not an emergency-response or health-advice service.
 
