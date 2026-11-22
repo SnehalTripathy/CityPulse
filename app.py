@@ -15,6 +15,7 @@ from ingestion.weather_api import fetch_forecast
 from ingestion.openaq_api import fetch_latest_measurements
 from analytics.stress_index import add_weather_stress
 from analytics.data_quality import summarize_air_quality
+from analytics.quality import validate_observations, coverage_label, source_quality_summary
 from analytics.comparison import build_city_comparison_record
 from analytics.trends import TREND_METRICS, build_city_trend_frame
 from analytics.zone_intelligence import build_zone_coverage, detect_observed_hotspot_clusters
@@ -180,7 +181,7 @@ def _open_zone_intelligence():
 
 page = st.sidebar.radio(
     "Workspace",
-    ["Command Center", "City Comparison", "Air Quality Intelligence", "Environmental Analytics", "Predictive Intelligence", "Anomaly Detection", "Zone Intelligence", "Environmental Health & Exposure", "Smart Alerts & Recommendations", "Scenario Simulator", "Methodology"],
+    ["Command Center", "City Comparison", "Air Quality Intelligence", "Environmental Analytics", "Predictive Intelligence", "Anomaly Detection", "Zone Intelligence", "Environmental Health & Exposure", "Smart Alerts & Recommendations", "Data Quality & Confidence", "Scenario Simulator", "Methodology"],
     key="workspace_page",
 )
 st.sidebar.divider()
@@ -1269,6 +1270,48 @@ elif page == "Environmental Health & Exposure":
         except Exception as exc:
             st.warning(f"WorldPop exposure estimation is temporarily unavailable: {exc}")
 
+elif page == "Data Quality & Confidence":
+    st.subheader("Data quality & confidence")
+    st.caption("Evidence-based coverage, freshness and validation. CityPulse reports observable data quality; it does not invent confidence probabilities.")
+    quality = source_quality_summary(weather_current, air)
+    weather_cols = st.columns(3)
+    weather_cols[0].metric("Weather source status", quality["weather_status"].title())
+    weather_cols[1].metric("Weather age", f"{quality['weather_age_hours']:.1f} h" if quality["weather_age_hours"] is not None else "Unavailable")
+    air_audit = quality["air_quality"]
+    weather_cols[2].metric("Air observations inspected", f"{air_audit['rows_total']:,}")
+    st.markdown("### Air-quality coverage")
+    summaries = summarize_air_quality(air)
+    if summaries.empty:
+        st.info("No nearby OpenAQ observations are currently available. No station coverage is inferred.")
+    else:
+        coverage_rows = []
+        for row in summaries.to_dict(orient="records"):
+            coverage_rows.append({
+                "Pollutant":row["parameter"],
+                "Unit":row["unit"],
+                "Stations returned":row["station_count"],
+                "Readings":row["reading_count"],
+                "Latest UTC":row["latest_utc"],
+                "Age (hours)":row["age_hours"],
+                "Freshness":row["freshness"],
+                "Coverage description":coverage_label(row["station_count"],row["age_hours"]),
+                "Future rows excluded":row["future_timestamp_readings"],
+            })
+        st.dataframe(pd.DataFrame(coverage_rows),use_container_width=True,hide_index=True)
+    st.markdown("### Validation audit")
+    metric_cols=st.columns(4)
+    metric_cols[0].metric("Valid rows",f"{air_audit['rows_valid']:,}")
+    metric_cols[1].metric("Invalid rows",f"{air_audit['rows_invalid']:,}")
+    metric_cols[2].metric("Future rows",f"{air_audit['rows_future']:,}")
+    metric_cols[3].metric("Out-of-range rows",f"{air_audit.get('rows_out_of_range',0):,}")
+    for issue in air_audit["issues"]:
+        st.write(f"• {issue}")
+    if not air_audit["by_parameter"].empty:
+        st.dataframe(air_audit["by_parameter"],use_container_width=True,hide_index=True)
+    st.caption("Plausibility bounds are broad screening checks for recognized parameter names. They flag suspicious values; they do not prove a sensor is faulty. Unit absence and station identity gaps are reported separately and are not silently repaired.")
+    audit_csv=air_audit["by_parameter"].to_csv(index=False).encode("utf-8")
+    st.download_button("Export quality audit CSV",audit_csv,file_name=f"{city_name.lower().replace(' ','_')}_quality_audit.csv",mime="text/csv")
+
 elif page == "Smart Alerts & Recommendations":
     st.subheader("Smart alerts & recommendations")
     st.caption("Configure prototype triggers for current provider conditions, hourly forecasts and recent fixed-station readings. These are not official warnings or regulatory AQI categories.")
@@ -1302,6 +1345,18 @@ elif page == "Smart Alerts & Recommendations":
         "pm10_ug_m3":pm10_threshold,
     }
     assessment = build_alert_assessment(weather_current, weather, air, thresholds)
+    # Session-scoped alert history: records only newly observed trigger signatures.
+    if "citypulse_alert_history" not in st.session_state:
+        st.session_state["citypulse_alert_history"] = []
+    history_rows = st.session_state["citypulse_alert_history"]
+    current_signatures = set()
+    if not assessment["alerts"].empty:
+        for row in assessment["alerts"].to_dict(orient="records"):
+            signature = (city_name, row["Signal"], row["Trigger basis"], str(row["Time"]), float(row["Value"]))
+            current_signatures.add(signature)
+            if signature not in st.session_state.setdefault("citypulse_alert_signatures", set()):
+                history_rows.append({"City":city_name, **row})
+                st.session_state["citypulse_alert_signatures"].add(signature)
     st.divider()
     st.markdown("### Trigger assessment")
     if assessment["alerts"].empty:
@@ -1324,6 +1379,18 @@ elif page == "Smart Alerts & Recommendations":
         for note in assessment["unavailable"]:
             st.write(f"• {note}")
         st.caption("Weather conditions and forecasts are Open-Meteo modelled grid-cell data. PM medians use the latest eligible fixed OpenAQ station values no more than 24 hours old, normalized to µg/m³. Missing, stale, incompatible and mobile readings do not trigger a PM alert.")
+    st.markdown("### Alert history")
+    st.caption("This history is retained only in the current Streamlit browser session. It is not a server-side notification or durable account history.")
+    if history_rows:
+        history_frame = pd.DataFrame(history_rows)
+        st.dataframe(history_frame,use_container_width=True,hide_index=True)
+        st.download_button("Export alert history CSV",history_frame.to_csv(index=False).encode("utf-8"),file_name=f"{city_name.lower().replace(' ','_')}_alert_history.csv",mime="text/csv")
+        if st.button("Clear session alert history",key="clear_alert_history"):
+            st.session_state["citypulse_alert_history"]=[]
+            st.session_state["citypulse_alert_signatures"]=set()
+            st.rerun()
+    else:
+        st.info("No threshold crossings have been recorded in this browser session.")
     st.caption("Thresholds are adjustable for this browser session only. Alerts are recalculated when the page refreshes; no email, SMS or push notifications are sent. Rainfall forecast triggers use the largest single preceding-hour accumulation, not a flood forecast.")
 
 else:
