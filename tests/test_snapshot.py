@@ -21,9 +21,9 @@ def test_collect_snapshot_keeps_weather_when_air_is_unavailable(monkeypatch):
 
     monkeypatch.setattr(snapshot, "fetch_latest_measurements", fail_air)
     result = collect_snapshot("placeholder-key")
-    assert len(result) == 5
+    assert len(result) == 5 * len(snapshot.CITIES)
     assert set(result["source"]) == {"open-meteo"}
-    assert set(result["city"]) == {"Bengaluru"}
+    assert set(result["city"]) == set(snapshot.CITIES)
 
 
 def test_append_snapshot_deduplicates_provider_records(tmp_path):
