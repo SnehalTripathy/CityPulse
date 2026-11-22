@@ -117,3 +117,28 @@ def test_daily_summary_keeps_same_named_stations_with_distinct_location_ids():
     assert len(daily) == 2
     assert set(daily["location_id"]) == {101, 102}
     assert set(daily["median_value"]) == {12, 48}
+
+
+def test_collect_snapshot_invokes_optional_city_monitor_callback(monkeypatch):
+    cities = {
+        "Test City": {"latitude": 12.0, "longitude": 77.0, "timezone": "UTC"},
+    }
+    monkeypatch.setattr(snapshot, "CITIES", cities)
+    weather = pd.DataFrame({
+        "time": pd.to_datetime(["2026-11-22T13:00"]),
+        "apparent_temperature": [42.0],
+        "precipitation": [0.0],
+    })
+    weather.attrs["current"] = {
+        "time": "2026-11-22T12:00",
+        "apparent_temperature": 42.0,
+        "precipitation": 0.0,
+    }
+    monkeypatch.setattr(snapshot, "fetch_forecast", lambda *_: weather)
+    observed = []
+    result = collect_snapshot(on_city_data=lambda name, current_weather, air: observed.append((name, current_weather, air)))
+    assert set(result["city"]) == {"Test City"}
+    assert len(observed) == 1
+    assert observed[0][0] == "Test City"
+    assert observed[0][1].attrs["current"]["apparent_temperature"] == 42.0
+    assert observed[0][2].empty
