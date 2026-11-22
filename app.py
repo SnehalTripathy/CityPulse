@@ -37,7 +37,12 @@ from ingestion.worldpop import (
     fetch_worldpop_event_exposure,
 )
 from ml.anomaly import detect_recent_weather_anomaly
-from ml.forecasting import (\n    train_next_observation_model,\n    train_multi_horizon_weather_forecast,\n    train_pollutant_deterioration_forecast,\n)\nfrom ingestion.terrain_hydrology import fetch_terrain_susceptibility, fetch_hydro_features
+from ml.forecasting import (
+    train_next_observation_model,
+    train_multi_horizon_weather_forecast,
+    train_pollutant_deterioration_forecast,
+)
+from ingestion.terrain_hydrology import fetch_terrain_susceptibility, fetch_hydro_features
 from utils.storage import ensure_data_dirs, load_observations, load_daily_observations
 
 st.set_page_config(
