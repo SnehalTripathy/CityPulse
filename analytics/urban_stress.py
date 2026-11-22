@@ -128,3 +128,54 @@ def calculate_urban_stress(
         "pm10_median": round(pm["pm10"], 2) if "pm10" in pm else None,
         "reason": None,
     }
+
+
+def calculate_projected_urban_stress(
+    weather_prediction: dict,
+    pm25_ug_m3: float | None,
+    pm10_ug_m3: float | None,
+) -> dict:
+    """Calculate a projected CityPulse Index from validated model outputs only.
+
+    The component scores intentionally match the current experimental heuristic.
+    Caller must pass only pollutant forecasts that cleared their persistence test.
+    Missing weather or particulate forecasts withhold the composite.
+    """
+    apparent = pd.to_numeric(weather_prediction.get("apparent_temperature"), errors="coerce")
+    precipitation = pd.to_numeric(weather_prediction.get("precipitation"), errors="coerce")
+    if pd.isna(apparent) or pd.isna(precipitation):
+        return {
+            "index": None,
+            "reason": "A validated apparent-temperature and hourly-rainfall forecast are both required.",
+        }
+
+    pm_values = {}
+    for name, value in (("pm25", pm25_ug_m3), ("pm10", pm10_ug_m3)):
+        numeric = pd.to_numeric(value, errors="coerce")
+        if pd.notna(numeric) and float(numeric) >= 0:
+            pm_values[name] = float(numeric)
+    if not pm_values:
+        return {
+            "index": None,
+            "reason": "At least one validated fixed-station PM2.5 or PM10 forecast is required.",
+        }
+
+    heat_score = min(100.0, max(0.0, (float(apparent) - 22.0) / 18.0 * 100.0))
+    rain_score = min(100.0, max(0.0, float(precipitation) / 10.0 * 100.0))
+    pm_scores = [
+        min(100.0, max(0.0, pm_values[name] / reference * 100.0))
+        for name, reference in PM_REFERENCES_UG_M3.items()
+        if name in pm_values
+    ]
+    air_score = max(pm_scores)
+    index = 0.50 * heat_score + 0.35 * air_score + 0.15 * rain_score
+    return {
+        "index": round(float(index), 1),
+        "heat_score": round(heat_score, 1),
+        "air_score": round(air_score, 1),
+        "rain_score": round(rain_score, 1),
+        "pm25_forecast_ug_m3": round(pm_values["pm25"], 2) if "pm25" in pm_values else None,
+        "pm10_forecast_ug_m3": round(pm_values["pm10"], 2) if "pm10" in pm_values else None,
+        "reason": None,
+        "method": "50% heat + 35% particulate + 15% hourly rainfall",
+    }
