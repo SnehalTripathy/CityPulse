@@ -30,7 +30,8 @@ def build_zone_coverage(
         "station_count": 0, "geocoded_station_count": 0, "nearest_station_km": None,
         "median_station_distance_km": None, "farthest_station_km": None,
         "occupied_grid_cells": 0, "fresh_stations": 0, "recent_stations": 0,
-        "stale_stations": 0, "fixed_stations": 0, "mobile_stations": 0,
+        "stale_stations": 0, "future_timestamp_stations": 0,
+        "fixed_stations": 0, "mobile_stations": 0,
         "query_radius_km": 25.0,
     }
     station_columns = [
