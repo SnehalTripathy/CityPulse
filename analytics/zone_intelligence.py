@@ -161,7 +161,7 @@ def detect_observed_hotspot_clusters(
         return "insufficient_station_density", pd.DataFrame(columns=result_columns), sample_count
 
     threshold = float(frame["value"].quantile(0.75))
-    high = frame.loc[frame["value"] >= threshold].copy().reset_index(drop=True)
+    high = frame.loc[frame["value"] > threshold].copy().reset_index(drop=True)
     if len(high) < 2:
         return "no_cluster", pd.DataFrame(columns=result_columns), sample_count
 
