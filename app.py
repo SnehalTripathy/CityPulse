@@ -184,7 +184,7 @@ page = st.sidebar.radio(
     key="workspace_page",
 )
 st.sidebar.divider()
-st.sidebar.caption("Data: Open-Meteo · OpenAQ")
+st.sidebar.caption("Data: Open-Meteo · OpenAQ · WorldPop")
 st.sidebar.caption(f"Last refreshed: {datetime.now().astimezone().strftime('%d %b %Y, %H:%M')}")
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -1334,6 +1334,10 @@ else:
 **Weather:** Open-Meteo forecast API. Current modelled conditions and hourly forecasts are displayed separately.
 
 **Air quality:** OpenAQ API v3. CityPulse discovers nearby monitoring locations and retrieves each location’s latest sensor measurements. Nearby coverage and reporting times vary. Missing readings are not imputed.
+
+**Population and exposure:** WorldPop Global2 R2025A (CC BY 4.0) supplies approximately 100 m population estimates and demographic group counts. CityPulse summarises radial catchments and an approximate 10 km city-centre polygon, with an optional 1 km population grid. Its distance-weighted exposure estimate uses a point at the modelled city-centre weather grid or fixed monitors whose recent PM readings cross a user trigger. It is a proximity estimate, not an observed count of affected people.
+
+**Smart alerts:** User-configurable prototype triggers compare Open-Meteo modelled current conditions and next-24-hour forecasts separately from recent fixed OpenAQ station medians. Trigger thresholds are not official warnings; recommendations are informational. Notification delivery is not enabled.
 
 **Experimental CityPulse Index:** 50% heat signal + 35% particulate signal + 15% rainfall signal. The particulate signal uses the higher of the citywide median PM2.5/PM10 readings, normalized against 60 and 100 µg/m³ respectively. A reading must be no more than 48 hours old. These are project normalisation anchors, not an official AQI calculation: the CPCB AQI uses pollutant-specific breakpoints and prescribed averaging periods, while this prototype uses latest sensor readings. See the [CPCB National AQI methodology](https://airquality.cpcb.gov.in/ccr_docs/About_AQI.pdf). The CityPulse index is not an official rating or health advisory.
 
