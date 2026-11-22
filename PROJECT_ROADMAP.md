@@ -14,17 +14,17 @@ This is the working project checklist. Check an item only after implementation a
 - [x] Public-facing README and live Streamlit link
 
 ## Five priority product capabilities
-- [ ] **1. City Comparison Engine**
+- [x] **1. City Comparison Engine**
   - [x] Compare 2–3 selected cities side by side
   - [x] Compare weather, PM2.5, PM10, rainfall and the experimental CityPulse Index
   - [x] Show pollutant availability, observation timestamps and fair-comparison caveats
-  - [ ] Add multi-city trend comparison once sufficient history exists
-- [ ] **2. Advanced Zone Intelligence**
+  - [x] Add multi-city daily trend comparison with shared UTC windows, pollutant-unit filtering and a minimum-history gate; results remain withheld until sufficient archive coverage exists
+- [x] **2. Advanced Zone Intelligence — station, satellite-context and mapped-green-space scope delivered with explicit data limits**
   - [x] Interactive station map with pollutant-aware detail and station selection
-  - [ ] Show station density, coverage gaps and data freshness
-  - [ ] Add spatial pollution hotspot analysis only where station density supports it
-  - [ ] Add urban heat-island mapping using suitable satellite/land-surface data
-  - [ ] Add green-cover / vegetation layers and park accessibility where data supports them
+  - [x] Show returned-station distribution, occupied 5 km cells, station freshness and the OpenAQ query footprint; do not infer confirmed gaps from empty cells
+  - [x] Screen for relative elevated station clusters only with at least six recent comparable stations and a multi-station group within 5 km; otherwise withhold
+  - [x] Add NASA MODIS daytime land-surface temperature imagery as UHI investigation context; a numeric urban-versus-rural UHI estimate is not claimed
+  - [x] Add ESA WorldCover land-cover and OpenStreetMap green-space layers with straight-line park-proximity indicators; walking-network accessibility remains a future enhancement
 - [ ] **3. Environmental Health & Exposure**
   - [ ] Add population distribution and exposure overlays using reputable gridded data
   - [ ] Estimate population exposed to elevated heat or pollution with documented assumptions
@@ -47,7 +47,7 @@ This is the working project checklist. Check an item only after implementation a
 - [ ] Normalize pollutant names and units across sources
 - [x] Display pollutant-level analytics and time freshness
 - [ ] Separate official AQI values (where an official feed exists) from the experimental CityPulse Index
-- [ ] Build comparable city metrics with common time windows and units
+- [x] Build daily historical comparison trends on shared UTC windows, retaining only compatible pollutant concentration units; live snapshots remain timestamp-led
 - [ ] Add source provenance and quality indicators to dashboard metrics
 - [ ] Expand historical views after validating persistent archive access
 
@@ -55,8 +55,8 @@ This is the working project checklist. Check an item only after implementation a
 - [x] Replace the basic station pin view with a richer interactive station map
 - [x] Add station-level drill-down and a sparse-coverage warning
 - [ ] Add pollution hotspot interpolation only when station density and validation permit
-- [ ] Add satellite-derived land-surface temperature / urban heat-island layers
-- [ ] Add vegetation / tree-cover / green-space layers
+- [x] Add NASA MODIS daytime land-surface temperature context imagery; quantitative UHI contrast is still unvalidated
+- [x] Add ESA WorldCover 2021 land-cover imagery and OpenStreetMap mapped green-space features
 - [ ] Add rainfall accumulation and flood-susceptibility layers from authoritative datasets
 - [ ] Add geospatial population exposure overlays
 
@@ -76,6 +76,9 @@ This is the working project checklist. Check an item only after implementation a
 - [ ] Add population exposure / planning insights for policymakers
 - [ ] Add alert preferences and delivery integrations after validation
 
+## Final project closeout
+- [ ] Remove this master checklist (`PROJECT_ROADMAP.md`) from the public GitHub repository after all project features, release checks and documentation are complete.
+
 ## Five-hour implementation sprint — target 12:30 AM IST, 23 November 2026
 - [x] Fix global-city timezone handling in weather requests
 - [x] Build a 2–3 city comparison view using live provider responses
@@ -83,7 +86,7 @@ This is the working project checklist. Check an item only after implementation a
 - [x] Upgrade Zone Intelligence station map and station drill-down
 - [x] Add a transparent data freshness / coverage panel
 - [x] Add or update tests for city comparison metrics, timezone handling, air-quality freshness and global city registry
-- [x] Run CI and resolve regressions (20 tests passed, latest run green)
+- [x] Run CI and resolve regressions (26 tests passed in the latest verified run)
 - [ ] Verify the deployed Streamlit app where deployment status is observable
 
 ## Release quality gates
