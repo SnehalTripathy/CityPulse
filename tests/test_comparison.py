@@ -1,6 +1,6 @@
 import pandas as pd
 
-from analytics.comparison import build_city_comparison_record, pollutant_median
+from analytics.comparison import build_city_comparison_record, latest_pollutant_summary, pollutant_median
 from analytics.data_quality import summarize_air_quality
 
 
@@ -31,3 +31,17 @@ def test_comparison_record_keeps_missing_air_quality_blank():
     assert result["PM10 (µg/m³)"] is None
     assert result["CityPulse Index"] is None
     assert result["Monitoring stations"] == 0
+
+
+def test_comparison_uses_fresh_fixed_stations_and_normalises_mg_units():
+    now = pd.Timestamp("2026-11-22T18:00:00Z")
+    air = pd.DataFrame([
+        {"parameter": "pm2.5", "unit": "mg/m³", "value": 0.020, "datetime_utc": "2026-11-22T17:00:00Z", "location_id": 1, "is_mobile": False},
+        {"parameter": "pm25", "unit": "µg/m³", "value": 30, "datetime_utc": "2026-11-22T16:00:00Z", "location_id": 2, "is_mobile": False},
+        {"parameter": "pm25", "unit": "µg/m³", "value": 800, "datetime_utc": "2026-11-20T00:00:00Z", "location_id": 3, "is_mobile": False},
+        {"parameter": "pm25", "unit": "µg/m³", "value": 900, "datetime_utc": "2026-11-22T17:30:00Z", "location_id": 4, "is_mobile": True},
+    ])
+    result = latest_pollutant_summary(air, "pm25", now=now)
+    assert result["station_count"] == 2
+    assert result["value"] == 25
+    assert result["age_hours"] == 1
