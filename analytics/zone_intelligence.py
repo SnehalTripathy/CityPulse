@@ -84,7 +84,7 @@ def build_zone_coverage(
             "freshness": freshness,
             "pollutant_count": int(group["parameter"].nunique()) if "parameter" in group else 0,
             "reading_count": int(len(group)),
-            "is_mobile": bool(group["is_mobile"].fillna(False).astype(bool).any()) if "is_mobile" in group else False,
+            "is_mobile": bool(group["is_mobile"].map(lambda value: str(value).strip().lower() in {"true", "1", "yes", "y"}).any()) if "is_mobile" in group else False,
         })
     inventory = pd.DataFrame(rows)
     mapped = inventory.dropna(subset=["latitude", "longitude"]).copy()
@@ -159,7 +159,7 @@ def detect_observed_hotspot_clusters(
         & (frame["datetime_utc"] <= now + pd.Timedelta(minutes=15))
     ].copy()
     if "is_mobile" in frame.columns:
-        frame = frame.loc[~frame["is_mobile"].fillna(False).astype(bool)].copy()
+        frame = frame.loc[~frame["is_mobile"].map(lambda value: str(value).strip().lower() in {"true", "1", "yes", "y"})].copy()
     if frame.empty:
         return "no_fresh_observations", pd.DataFrame(columns=result_columns), 0
 
