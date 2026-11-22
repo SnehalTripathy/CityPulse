@@ -63,7 +63,7 @@ air = pd.DataFrame()
 weather_error = None
 air_error = None
 try:
-    with st.spinner("Loading live weather observations and forecast…"):
+    with st.spinner("Loading live weather conditions and forecast…"):
         weather = load_weather(city["latitude"], city["longitude"])
 except Exception as exc:
     weather_error = str(exc)
@@ -78,6 +78,7 @@ try:
 except Exception as exc:
     air_error = str(exc)
 
+weather_current = weather.attrs.get("current", {}) if not weather.empty else {}
 if not weather.empty:
     weather = add_weather_stress(weather)
 
@@ -92,25 +93,40 @@ if page == "Command Center":
     if weather.empty:
         st.warning("Weather data is not available right now. Please refresh shortly.")
     else:
-        current = weather.iloc[0]
+        if weather_current:
+            current_df = pd.DataFrame([weather_current])
+            current_score = float(add_weather_stress(current_df).iloc[0]["weather_stress"])
+            temp = weather_current.get("temperature_2m")
+            humidity = weather_current.get("relative_humidity_2m")
+            wind = weather_current.get("wind_speed_10m")
+            current_time = weather_current.get("time", "Current API timestamp unavailable")
+            st.caption(f"Open-Meteo current conditions · {current_time} · modelled grid-cell data")
+        else:
+            first_forecast = weather.iloc[0]
+            current_score = float(first_forecast["weather_stress"])
+            temp = first_forecast.get("temperature_2m")
+            humidity = first_forecast.get("relative_humidity_2m")
+            wind = first_forecast.get("wind_speed_10m")
+            st.caption("Current-conditions payload unavailable; values below use the first hourly forecast slot.")
         cols = st.columns(4)
-        cols[0].metric("Temperature", f"{current['temperature_2m']:.1f} °C", help="Open-Meteo current modelled condition")
-        cols[1].metric("Relative humidity", f"{current['relative_humidity_2m']:.0f}%")
-        cols[2].metric("Wind speed", f"{current['wind_speed_10m']:.1f} km/h")
-        cols[3].metric("Weather stress signal", f"{current['weather_stress']:.0f}/100", help="Prototype weather-only indicator, not an official city rating")
-        st.markdown("### Next 24 hours")
+        cols[0].metric("Temperature", f"{float(temp):.1f} °C" if pd.notna(temp) else "—")
+        cols[1].metric("Relative humidity", f"{float(humidity):.0f}%" if pd.notna(humidity) else "—")
+        cols[2].metric("Wind speed", f"{float(wind):.1f} km/h" if pd.notna(wind) else "—")
+        cols[3].metric("Weather stress signal", f"{current_score:.0f}/100", help="Prototype weather-only indicator, not an official city rating")
+        st.markdown("### Hourly outlook")
         hourly = weather.head(24)
         fig = px.line(hourly, x="time", y=["temperature_2m", "apparent_temperature"], markers=True,
-                      labels={"value":"Temperature (°C)","time":"Local forecast time","variable":"Series"},
+                      labels={"value":"Temperature (°C)","time":"Forecast time","variable":"Series"},
                       template="plotly_dark", color_discrete_sequence=["#52C8FF","#9B8AFF"])
         fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238", legend_title_text="")
         st.plotly_chart(fig, use_container_width=True)
-    st.markdown("### Air quality")
+    st.markdown("### Nearby air quality")
     if air_error:
         st.warning(f"Air-quality feed issue: {air_error}")
     if air.empty:
-        st.info("No nearby OpenAQ observations were returned. Air-quality coverage depends on available monitoring stations and the API key.")
+        st.info("No nearby OpenAQ readings were returned. This can mean no stations are available within 25 km, readings are unavailable, or the API key is not configured.")
     else:
+        st.caption("Latest reported sensor values from nearby stations. Values can have different timestamps; check the timestamp column before comparing.")
         st.dataframe(air, use_container_width=True, hide_index=True)
 elif page == "Environmental Analytics":
     st.subheader("Environmental analytics")
@@ -139,8 +155,13 @@ elif page == "Zone Intelligence":
 elif page == "Scenario Simulator":
     st.subheader("Scenario simulator")
     st.caption("Explore hypothetical changes to heat exposure. This is a transparent sensitivity illustration, not an official forecast.")
+    if weather_current and weather_current.get("temperature_2m") is not None:
+        baseline = float(weather_current["temperature_2m"])
+    elif not weather.empty:
+        baseline = float(weather.iloc[0]["temperature_2m"])
+    else:
+        baseline = 30.0
     delta = st.slider("Hypothetical temperature increase (°C)", 0.0, 8.0, 2.0, 0.5)
-    baseline = float(weather.iloc[0]["temperature_2m"]) if not weather.empty else 30.0
     st.metric("Illustrative temperature", f"{baseline + delta:.1f} °C", f"+{delta:.1f} °C")
     st.caption("The scenario changes temperature only; it does not model health outcomes or infrastructure impacts.")
 else:
@@ -148,12 +169,12 @@ else:
     st.markdown("""
 **Pilot geography:** Bengaluru, Karnataka, India.
 
-**Weather:** Open-Meteo forecast API. Temperature, apparent temperature, humidity, precipitation and wind are presented as provider data.
+**Weather:** Open-Meteo forecast API. Current modelled conditions and hourly forecasts are displayed separately.
 
-**Air quality:** OpenAQ API v3. Nearby observations depend on station coverage, pollutant availability and API access. Missing data is shown as missing, never imputed as a live reading.
+**Air quality:** OpenAQ API v3. CityPulse discovers nearby monitoring locations and retrieves each location’s latest sensor measurements. Nearby coverage and reporting times vary. Missing readings are not imputed.
 
-**Weather stress indicator:** A prototype heuristic derived from temperature and apparent temperature. It is not an official Urban Stress Index, health assessment, or government rating. The full multi-dimensional CityPulse index will be defined and versioned when validated air-quality and precipitation inputs are available.
+**Weather stress indicator:** A prototype heuristic derived from apparent temperature, relative humidity and precipitation. It is not an official Urban Stress Index, health assessment, or government rating. The full multi-dimensional CityPulse index will be defined and validated when suitable air-quality and precipitation observations are available.
 
 **Machine learning:** Predictive models and anomaly detection will only be published after collection of adequate time-series data, baseline evaluation and leakage checks. Until then, API forecasts are clearly distinguished from model predictions.
     """)
-    st.markdown("**Current data timestamp (UTC):** " + datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+    st.markdown("**Application data timestamp (UTC):** " + datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
