@@ -33,17 +33,62 @@ history = load_history()
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
-:root { --bg:#0B1220; --panel:#152238; --cyan:#52C8FF; --violet:#9B8AFF; }
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+:root {
+ --bg:#080D1B; --panel:#111B31; --panel2:#172541; --text:#F4F7FF; --muted:#9BAAC4;
+ --cyan:#39D5F6; --violet:#A78BFA; --pink:#FB7185; --orange:#F59E0B; --lime:#A3E635; --blue:#60A5FA;
+}
 html, body, [class*="css"] { font-family:'DM Sans',sans-serif; }
-.stApp { background:var(--bg); color:#E8F0FA; }
-.block-container { padding-top:2rem; max-width:1500px; }
-h1,h2,h3 { font-family:'Space Grotesk',sans-serif; }
-[data-testid="stMetric"] { background:var(--panel); border:1px solid #233754; padding:18px; border-radius:14px; }
-[data-testid="stSidebar"] { background:#0E192B; border-right:1px solid #20324B; }
-div[data-testid="stAlert"] { border-radius:12px; }
-.pulse { color:var(--cyan); letter-spacing:.15em; font-size:.75rem; font-weight:700; }
-.subtle { color:#91A4BC; }
+.stApp {
+ background:
+ radial-gradient(ellipse at 12% 0%, rgba(57,213,246,.13), transparent 28%),
+ radial-gradient(ellipse at 88% 8%, rgba(167,139,250,.15), transparent 30%),
+ radial-gradient(ellipse at 70% 90%, rgba(251,113,133,.08), transparent 28%), var(--bg);
+ color:var(--text);
+}
+.block-container { padding-top:2.6rem !important; padding-bottom:3rem !important; max-width:1560px; }
+h1,h2,h3,h4 { font-family:'Space Grotesk',sans-serif !important; letter-spacing:-.035em; color:#F8FAFF; }
+h1 { font-size:clamp(2rem,4vw,3.2rem) !important; line-height:1.12 !important; margin:.25rem 0 .55rem !important; }
+h2 { font-size:1.75rem !important; }
+h3 { font-size:1.25rem !important; }
+p, label, .stMarkdown { color:#DCE6F7; }
+[data-testid="stSidebar"] { background:linear-gradient(180deg,#111C34 0%,#0B1325 100%); border-right:1px solid rgba(96,165,250,.18); }
+[data-testid="stSidebar"] h2 { background:linear-gradient(90deg,var(--cyan),var(--violet),var(--pink)); -webkit-background-clip:text; color:transparent !important; }
+[data-testid="stSidebar"] [data-testid="stRadio"] label { border-radius:10px; padding:.35rem .55rem; transition:all .2s ease; }
+[data-testid="stSidebar"] [data-testid="stRadio"] label:hover { background:rgba(57,213,246,.10); }
+.pulse {
+ display:inline-flex; align-items:center; gap:.55rem; color:#72E7FF;
+ letter-spacing:.16em; font-size:.72rem; font-weight:800; line-height:1.6;
+ padding:.38rem .75rem; margin:0 0 .65rem; border:1px solid rgba(57,213,246,.3);
+ border-radius:999px; background:linear-gradient(90deg,rgba(57,213,246,.12),rgba(167,139,250,.12));
+ overflow:visible; position:relative;
+}
+.pulse:before { content:''; width:7px; height:7px; border-radius:50%; background:#A3E635; box-shadow:0 0 12px #A3E635; }
+.subtle { color:var(--muted) !important; font-size:1rem; max-width:850px; }
+[data-testid="stMetric"] {
+ background:linear-gradient(145deg,rgba(25,41,70,.96),rgba(15,26,47,.96));
+ border:1px solid rgba(130,160,210,.20); padding:1rem 1.1rem; border-radius:18px;
+ box-shadow:0 10px 28px rgba(0,0,0,.16); min-height:118px;
+}
+[data-testid="stHorizontalBlock"] [data-testid="stMetric"]:nth-child(1) { border-top:3px solid var(--cyan); }
+[data-testid="stHorizontalBlock"] [data-testid="stMetric"]:nth-child(2) { border-top:3px solid var(--violet); }
+[data-testid="stHorizontalBlock"] [data-testid="stMetric"]:nth-child(3) { border-top:3px solid var(--pink); }
+[data-testid="stHorizontalBlock"] [data-testid="stMetric"]:nth-child(4) { border-top:3px solid var(--lime); }
+[data-testid="stMetricLabel"] { color:#AFC0DA !important; font-weight:600; }
+[data-testid="stMetricValue"] { color:#FFFFFF !important; font-family:'Space Grotesk',sans-serif; }
+[data-testid="stMetricDelta"] { font-weight:700; }
+.stTabs [data-baseweb="tab-list"] { gap:.45rem; background:rgba(17,27,49,.8); padding:.4rem; border-radius:14px; }
+.stTabs [data-baseweb="tab"] { border-radius:10px; color:#B8C7DE; padding:.55rem 1rem; }
+.stTabs [aria-selected="true"] { background:linear-gradient(100deg,rgba(57,213,246,.2),rgba(167,139,250,.22)); color:#FFFFFF !important; }
+.stButton button, .stDownloadButton button { border:0; border-radius:12px; color:#07111F; font-weight:800; background:linear-gradient(100deg,var(--cyan),var(--violet),var(--pink)); }
+.stButton button:hover, .stDownloadButton button:hover { filter:brightness(1.12); transform:translateY(-1px); }
+.stSelectbox [data-baseweb="select"], .stMultiSelect [data-baseweb="select"] { border-radius:12px; }
+[data-testid="stAlert"] { border-radius:14px; border:1px solid rgba(130,160,210,.2); }
+[data-testid="stDataFrame"] { border:1px solid rgba(130,160,210,.2); border-radius:14px; overflow:hidden; }
+[data-testid="stPlotlyChart"] { background:linear-gradient(145deg,rgba(17,27,49,.6),rgba(23,37,65,.35)); border:1px solid rgba(130,160,210,.16); border-radius:18px; padding:.35rem; }
+hr { border-color:rgba(130,160,210,.18) !important; }
+.stSlider [data-baseweb="slider"] div[role="slider"] { background:#39D5F6; }
+footer { visibility:hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -107,9 +152,10 @@ usi = calculate_urban_stress(weather_current, air) if weather_current else {"ind
 if not weather.empty:
     weather = add_weather_stress(weather)
 
-st.markdown('<div class="pulse">LIVE URBAN INTELLIGENCE / PILOT 01</div>', unsafe_allow_html=True)
+st.markdown('<div class="pulse">LIVE URBAN INTELLIGENCE &nbsp;·&nbsp; PILOT 01</div>', unsafe_allow_html=True)
 st.title(f"{city_name} Urban Stress Monitor")
-st.markdown('<p class="subtle">A data-driven view of environmental conditions, emerging patterns and potential urban stress.</p>', unsafe_allow_html=True)
+st.markdown('<p class="subtle">See the city in colour — environmental signals, emerging patterns and experimental urban intelligence in one workspace.</p>', unsafe_allow_html=True)
+st.markdown('<div style="height:1px;background:linear-gradient(90deg,#39D5F6,#A78BFA,#FB7185,#F59E0B,#A3E635);opacity:.7;margin:1rem 0 1.35rem;border-radius:4px"></div>', unsafe_allow_html=True)
 
 if page == "Command Center":
     st.subheader("City overview")
@@ -155,7 +201,7 @@ if page == "Command Center":
         hourly = get_forward_hours(weather, weather_current, 24)
         fig = px.line(hourly, x="time", y=["temperature_2m", "apparent_temperature"], markers=True,
                       labels={"value":"Temperature (°C)","time":"Forecast time","variable":"Series"},
-                      template="plotly_dark", color_discrete_sequence=["#52C8FF","#9B8AFF"])
+                      template="plotly_dark", color_discrete_sequence=["#39D5F6","#A78BFA","#FB7185","#F59E0B","#A3E635","#60A5FA"])
         fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238", legend_title_text="")
         st.plotly_chart(fig, use_container_width=True)
     st.markdown("### Nearby air quality")
@@ -179,7 +225,7 @@ elif page == "Environmental Analytics":
             vars_ = [c for c in ["temperature_2m","apparent_temperature","relative_humidity_2m","precipitation","wind_speed_10m"] if c in weather]
             selected = st.multiselect("Forecast metrics", vars_, default=vars_[:3])
             if selected:
-                fig = px.line(get_forward_hours(weather, weather_current, 72), x="time", y=selected, template="plotly_dark")
+                fig = px.line(get_forward_hours(weather, weather_current, 72), x="time", y=selected, template="plotly_dark", color_discrete_sequence=["#39D5F6","#A78BFA","#FB7185","#F59E0B","#A3E635","#60A5FA"])
                 fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238")
                 st.plotly_chart(fig, use_container_width=True)
     with tabs[1]:
