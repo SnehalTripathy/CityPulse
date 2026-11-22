@@ -390,19 +390,30 @@ elif page == "Command Center":
     else:
         st.caption("Latest reported sensor values from nearby stations. Values can have different timestamps; check the timestamp column before comparing.")
         st.dataframe(air, use_container_width=True, hide_index=True)
+    st.markdown("### Data freshness & coverage")
+    quality_cols = st.columns(3)
+    weather_age = None
+    if weather_current.get("time"):
+        weather_stamp = pd.Timestamp(weather_current["time"])
+        if weather_stamp.tzinfo is None:
+            weather_stamp = weather_stamp.tz_localize(city["timezone"])
+        weather_age = max(0.0, (pd.Timestamp.now(tz="UTC") - weather_stamp.tz_convert("UTC")).total_seconds() / 3600)
+    quality_cols[0].metric("Weather timestamp age", f"{weather_age:.1f} h" if weather_age is not None else "Unavailable")
+    if air.empty:
+        quality_cols[1].metric("Air monitoring stations", "0")
+        quality_cols[2].metric("Newest air observation", "Unavailable")
+    else:
         air_summary = summarize_air_quality(air)
-        if not air_summary.empty:
-            st.markdown("#### Data coverage & freshness")
-            quality_cols = st.columns(3)
-            station_total = air["location_id"].nunique() if "location_id" in air.columns else air["station"].nunique()
-            freshest_age = float(air_summary["age_hours"].min())
-            quality_cols[0].metric("Reporting stations", f"{station_total:,}")
-            quality_cols[1].metric("Pollutants available", f"{air_summary['parameter'].nunique():,}")
-            quality_cols[2].metric("Freshest reading", f"{freshest_age:.1f} hours ago")
-            if freshest_age > 48:
-                st.warning("The newest nearby air-quality observation is older than 48 hours. Treat it as stale, not live.")
-            else:
-                st.caption("Freshness is calculated from provider observation timestamps. Recent does not guarantee complete city coverage.")
+        station_total = air["location_id"].nunique() if "location_id" in air.columns else air["station"].nunique()
+        freshest_age = float(air_summary["age_hours"].min()) if not air_summary.empty else None
+        quality_cols[1].metric("Air monitoring stations", f"{station_total:,}")
+        quality_cols[2].metric("Newest air observation", f"{freshest_age:.1f} h ago" if freshest_age is not None else "Unavailable")
+        if freshest_age is not None and freshest_age > 48:
+            st.warning("The newest nearby air-quality observation is older than 48 hours. Treat it as stale, not live.")
+        else:
+            st.caption("Freshness uses provider observation timestamps. Station counts indicate returned coverage, not complete city coverage.")
+    if weather_age is not None and weather_age > 12:
+        st.warning("The selected city's weather timestamp is more than 12 hours old.")
     if not history.empty:
         last_collected = history["observed_at_utc"].max() if "observed_at_utc" in history else None
         st.caption(f"Local observation archive: {len(history):,} rows" + (f" · latest collection {last_collected}" if pd.notna(last_collected) else ""))
