@@ -457,8 +457,6 @@ elif page == "Command Center":
         st.warning("Weather data is not available right now. Please refresh shortly.")
     else:
         if weather_current:
-            current_df = pd.DataFrame([weather_current])
-            current_score = float(add_weather_stress(current_df).iloc[0]["weather_stress"])
             temp = weather_current.get("temperature_2m")
             humidity = weather_current.get("relative_humidity_2m")
             wind = weather_current.get("wind_speed_10m")
@@ -466,7 +464,6 @@ elif page == "Command Center":
             st.caption(f"Open-Meteo current conditions · {current_time} · modelled grid-cell data")
         else:
             first_forecast = weather.iloc[0]
-            current_score = float(first_forecast["weather_stress"])
             temp = first_forecast.get("temperature_2m")
             humidity = first_forecast.get("relative_humidity_2m")
             wind = first_forecast.get("wind_speed_10m")
