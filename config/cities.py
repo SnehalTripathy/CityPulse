@@ -321,4 +321,412 @@ CITIES = {
         "latitude": 17.9689, "longitude": 79.5941,
         "timezone": "Asia/Kolkata",
     },
+    "Tokyo": {
+        "country": "Japan", "state": "Tokyo",
+        "latitude": 35.6762, "longitude": 139.6503,
+        "timezone": "Asia/Tokyo",
+    },
+    "Osaka": {
+        "country": "Japan", "state": "Osaka",
+        "latitude": 34.6937, "longitude": 135.5023,
+        "timezone": "Asia/Tokyo",
+    },
+    "Kyoto": {
+        "country": "Japan", "state": "Kyoto",
+        "latitude": 35.0116, "longitude": 135.7681,
+        "timezone": "Asia/Tokyo",
+    },
+    "Yokohama": {
+        "country": "Japan", "state": "Kanagawa",
+        "latitude": 35.4437, "longitude": 139.638,
+        "timezone": "Asia/Tokyo",
+    },
+    "Nagoya": {
+        "country": "Japan", "state": "Aichi",
+        "latitude": 35.1815, "longitude": 136.9066,
+        "timezone": "Asia/Tokyo",
+    },
+    "Sapporo": {
+        "country": "Japan", "state": "Hokkaido",
+        "latitude": 43.0618, "longitude": 141.3545,
+        "timezone": "Asia/Tokyo",
+    },
+    "Fukuoka": {
+        "country": "Japan", "state": "Fukuoka",
+        "latitude": 33.5904, "longitude": 130.4017,
+        "timezone": "Asia/Tokyo",
+    },
+    "Beijing": {
+        "country": "China", "state": "Beijing",
+        "latitude": 39.9042, "longitude": 116.4074,
+        "timezone": "Asia/Shanghai",
+    },
+    "Shanghai": {
+        "country": "China", "state": "Shanghai",
+        "latitude": 31.2304, "longitude": 121.4737,
+        "timezone": "Asia/Shanghai",
+    },
+    "Guangzhou": {
+        "country": "China", "state": "Guangdong",
+        "latitude": 23.1291, "longitude": 113.2644,
+        "timezone": "Asia/Shanghai",
+    },
+    "Shenzhen": {
+        "country": "China", "state": "Guangdong",
+        "latitude": 22.5431, "longitude": 114.0579,
+        "timezone": "Asia/Shanghai",
+    },
+    "Chengdu": {
+        "country": "China", "state": "Sichuan",
+        "latitude": 30.5728, "longitude": 104.0668,
+        "timezone": "Asia/Shanghai",
+    },
+    "Chongqing": {
+        "country": "China", "state": "Chongqing",
+        "latitude": 29.563, "longitude": 106.5516,
+        "timezone": "Asia/Shanghai",
+    },
+    "Wuhan": {
+        "country": "China", "state": "Hubei",
+        "latitude": 30.5928, "longitude": 114.3055,
+        "timezone": "Asia/Shanghai",
+    },
+    "Hangzhou": {
+        "country": "China", "state": "Zhejiang",
+        "latitude": 30.2741, "longitude": 120.1551,
+        "timezone": "Asia/Shanghai",
+    },
+    "New York City": {
+        "country": "United States", "state": "New York",
+        "latitude": 40.7128, "longitude": -74.006,
+        "timezone": "America/New_York",
+    },
+    "Los Angeles": {
+        "country": "United States", "state": "California",
+        "latitude": 34.0522, "longitude": -118.2437,
+        "timezone": "America/Los_Angeles",
+    },
+    "Chicago": {
+        "country": "United States", "state": "Illinois",
+        "latitude": 41.8781, "longitude": -87.6298,
+        "timezone": "America/Chicago",
+    },
+    "Houston": {
+        "country": "United States", "state": "Texas",
+        "latitude": 29.7604, "longitude": -95.3698,
+        "timezone": "America/Chicago",
+    },
+    "Phoenix": {
+        "country": "United States", "state": "Arizona",
+        "latitude": 33.4484, "longitude": -112.074,
+        "timezone": "America/Phoenix",
+    },
+    "Philadelphia": {
+        "country": "United States", "state": "Pennsylvania",
+        "latitude": 39.9526, "longitude": -75.1652,
+        "timezone": "America/New_York",
+    },
+    "San Antonio": {
+        "country": "United States", "state": "Texas",
+        "latitude": 29.4241, "longitude": -98.4936,
+        "timezone": "America/Chicago",
+    },
+    "San Diego": {
+        "country": "United States", "state": "California",
+        "latitude": 32.7157, "longitude": -117.1611,
+        "timezone": "America/Los_Angeles",
+    },
+    "Dallas": {
+        "country": "United States", "state": "Texas",
+        "latitude": 32.7767, "longitude": -96.797,
+        "timezone": "America/Chicago",
+    },
+    "San Francisco": {
+        "country": "United States", "state": "California",
+        "latitude": 37.7749, "longitude": -122.4194,
+        "timezone": "America/Los_Angeles",
+    },
+    "London": {
+        "country": "United Kingdom", "state": "England",
+        "latitude": 51.5072, "longitude": -0.1276,
+        "timezone": "Europe/London",
+    },
+    "Manchester": {
+        "country": "United Kingdom", "state": "England",
+        "latitude": 53.4808, "longitude": -2.2426,
+        "timezone": "Europe/London",
+    },
+    "Birmingham": {
+        "country": "United Kingdom", "state": "England",
+        "latitude": 52.4862, "longitude": -1.8904,
+        "timezone": "Europe/London",
+    },
+    "Glasgow": {
+        "country": "United Kingdom", "state": "Scotland",
+        "latitude": 55.8642, "longitude": -4.2518,
+        "timezone": "Europe/London",
+    },
+    "Liverpool": {
+        "country": "United Kingdom", "state": "England",
+        "latitude": 53.4084, "longitude": -2.9916,
+        "timezone": "Europe/London",
+    },
+    "Edinburgh": {
+        "country": "United Kingdom", "state": "Scotland",
+        "latitude": 55.9533, "longitude": -3.1883,
+        "timezone": "Europe/London",
+    },
+    "Paris": {
+        "country": "France", "state": "Île-de-France",
+        "latitude": 48.8566, "longitude": 2.3522,
+        "timezone": "Europe/Paris",
+    },
+    "Marseille": {
+        "country": "France", "state": "Provence-Alpes-Côte d'Azur",
+        "latitude": 43.2965, "longitude": 5.3698,
+        "timezone": "Europe/Paris",
+    },
+    "Lyon": {
+        "country": "France", "state": "Auvergne-Rhône-Alpes",
+        "latitude": 45.764, "longitude": 4.8357,
+        "timezone": "Europe/Paris",
+    },
+    "Toulouse": {
+        "country": "France", "state": "Occitanie",
+        "latitude": 43.6047, "longitude": 1.4442,
+        "timezone": "Europe/Paris",
+    },
+    "Nice": {
+        "country": "France", "state": "Provence-Alpes-Côte d'Azur",
+        "latitude": 43.7102, "longitude": 7.262,
+        "timezone": "Europe/Paris",
+    },
+    "Bordeaux": {
+        "country": "France", "state": "Nouvelle-Aquitaine",
+        "latitude": 44.8378, "longitude": -0.5792,
+        "timezone": "Europe/Paris",
+    },
+    "Moscow": {
+        "country": "Russia", "state": "Moscow",
+        "latitude": 55.7558, "longitude": 37.6173,
+        "timezone": "Europe/Moscow",
+    },
+    "Saint Petersburg": {
+        "country": "Russia", "state": "Saint Petersburg",
+        "latitude": 59.9311, "longitude": 30.3609,
+        "timezone": "Europe/Moscow",
+    },
+    "Novosibirsk": {
+        "country": "Russia", "state": "Novosibirsk Oblast",
+        "latitude": 55.0084, "longitude": 82.9357,
+        "timezone": "Asia/Novosibirsk",
+    },
+    "Yekaterinburg": {
+        "country": "Russia", "state": "Sverdlovsk Oblast",
+        "latitude": 56.8389, "longitude": 60.6057,
+        "timezone": "Asia/Yekaterinburg",
+    },
+    "Kazan": {
+        "country": "Russia", "state": "Tatarstan",
+        "latitude": 55.7961, "longitude": 49.1064,
+        "timezone": "Europe/Moscow",
+    },
+    "Nizhny Novgorod": {
+        "country": "Russia", "state": "Nizhny Novgorod Oblast",
+        "latitude": 56.2965, "longitude": 43.9361,
+        "timezone": "Europe/Moscow",
+    },
+    "Vladivostok": {
+        "country": "Russia", "state": "Primorsky Krai",
+        "latitude": 43.1155, "longitude": 131.8855,
+        "timezone": "Asia/Vladivostok",
+    },
+    "São Paulo": {
+        "country": "Brazil", "state": "São Paulo",
+        "latitude": -23.5505, "longitude": -46.6333,
+        "timezone": "America/Sao_Paulo",
+    },
+    "Rio de Janeiro": {
+        "country": "Brazil", "state": "Rio de Janeiro",
+        "latitude": -22.9068, "longitude": -43.1729,
+        "timezone": "America/Sao_Paulo",
+    },
+    "Brasília": {
+        "country": "Brazil", "state": "Federal District",
+        "latitude": -15.7939, "longitude": -47.8828,
+        "timezone": "America/Sao_Paulo",
+    },
+    "Salvador": {
+        "country": "Brazil", "state": "Bahia",
+        "latitude": -12.9777, "longitude": -38.5016,
+        "timezone": "America/Bahia",
+    },
+    "Fortaleza": {
+        "country": "Brazil", "state": "Ceará",
+        "latitude": -3.7319, "longitude": -38.5267,
+        "timezone": "America/Fortaleza",
+    },
+    "Belo Horizonte": {
+        "country": "Brazil", "state": "Minas Gerais",
+        "latitude": -19.9167, "longitude": -43.9345,
+        "timezone": "America/Sao_Paulo",
+    },
+    "Curitiba": {
+        "country": "Brazil", "state": "Paraná",
+        "latitude": -25.4284, "longitude": -49.2733,
+        "timezone": "America/Sao_Paulo",
+    },
+    "Mexico City": {
+        "country": "Mexico", "state": "Mexico City",
+        "latitude": 19.4326, "longitude": -99.1332,
+        "timezone": "America/Mexico_City",
+    },
+    "Guadalajara": {
+        "country": "Mexico", "state": "Jalisco",
+        "latitude": 20.6597, "longitude": -103.3496,
+        "timezone": "America/Mexico_City",
+    },
+    "Monterrey": {
+        "country": "Mexico", "state": "Nuevo León",
+        "latitude": 25.6866, "longitude": -100.3161,
+        "timezone": "America/Monterrey",
+    },
+    "Puebla": {
+        "country": "Mexico", "state": "Puebla",
+        "latitude": 19.0414, "longitude": -98.2063,
+        "timezone": "America/Mexico_City",
+    },
+    "Tijuana": {
+        "country": "Mexico", "state": "Baja California",
+        "latitude": 32.5149, "longitude": -117.0382,
+        "timezone": "America/Tijuana",
+    },
+    "León": {
+        "country": "Mexico", "state": "Guanajuato",
+        "latitude": 21.1221, "longitude": -101.686,
+        "timezone": "America/Mexico_City",
+    },
+    "Cairo": {
+        "country": "Egypt", "state": "Cairo Governorate",
+        "latitude": 30.0444, "longitude": 31.2357,
+        "timezone": "Africa/Cairo",
+    },
+    "Alexandria": {
+        "country": "Egypt", "state": "Alexandria Governorate",
+        "latitude": 31.2001, "longitude": 29.9187,
+        "timezone": "Africa/Cairo",
+    },
+    "Giza": {
+        "country": "Egypt", "state": "Giza Governorate",
+        "latitude": 30.0131, "longitude": 31.2089,
+        "timezone": "Africa/Cairo",
+    },
+    "Luxor": {
+        "country": "Egypt", "state": "Luxor Governorate",
+        "latitude": 25.6872, "longitude": 32.6396,
+        "timezone": "Africa/Cairo",
+    },
+    "Aswan": {
+        "country": "Egypt", "state": "Aswan Governorate",
+        "latitude": 24.0889, "longitude": 32.8998,
+        "timezone": "Africa/Cairo",
+    },
+    "Bangkok": {
+        "country": "Thailand", "state": "Bangkok",
+        "latitude": 13.7563, "longitude": 100.5018,
+        "timezone": "Asia/Bangkok",
+    },
+    "Chiang Mai": {
+        "country": "Thailand", "state": "Chiang Mai",
+        "latitude": 18.7883, "longitude": 98.9853,
+        "timezone": "Asia/Bangkok",
+    },
+    "Pattaya": {
+        "country": "Thailand", "state": "Chonburi",
+        "latitude": 12.9236, "longitude": 100.8825,
+        "timezone": "Asia/Bangkok",
+    },
+    "Phuket": {
+        "country": "Thailand", "state": "Phuket",
+        "latitude": 7.8804, "longitude": 98.3923,
+        "timezone": "Asia/Bangkok",
+    },
+    "Khon Kaen": {
+        "country": "Thailand", "state": "Khon Kaen",
+        "latitude": 16.4419, "longitude": 102.835,
+        "timezone": "Asia/Bangkok",
+    },
+    "Johannesburg": {
+        "country": "South Africa", "state": "Gauteng",
+        "latitude": -26.2041, "longitude": 28.0473,
+        "timezone": "Africa/Johannesburg",
+    },
+    "Cape Town": {
+        "country": "South Africa", "state": "Western Cape",
+        "latitude": -33.9249, "longitude": 18.4241,
+        "timezone": "Africa/Johannesburg",
+    },
+    "Durban": {
+        "country": "South Africa", "state": "KwaZulu-Natal",
+        "latitude": -29.8587, "longitude": 31.0218,
+        "timezone": "Africa/Johannesburg",
+    },
+    "Pretoria": {
+        "country": "South Africa", "state": "Gauteng",
+        "latitude": -25.7479, "longitude": 28.2293,
+        "timezone": "Africa/Johannesburg",
+    },
+    "Gqeberha": {
+        "country": "South Africa", "state": "Eastern Cape",
+        "latitude": -33.9608, "longitude": 25.6022,
+        "timezone": "Africa/Johannesburg",
+    },
+    "Rome": {
+        "country": "Italy", "state": "Lazio",
+        "latitude": 41.9028, "longitude": 12.4964,
+        "timezone": "Europe/Rome",
+    },
+    "Milan": {
+        "country": "Italy", "state": "Lombardy",
+        "latitude": 45.4642, "longitude": 9.19,
+        "timezone": "Europe/Rome",
+    },
+    "Naples": {
+        "country": "Italy", "state": "Campania",
+        "latitude": 40.8518, "longitude": 14.2681,
+        "timezone": "Europe/Rome",
+    },
+    "Turin": {
+        "country": "Italy", "state": "Piedmont",
+        "latitude": 45.0703, "longitude": 7.6869,
+        "timezone": "Europe/Rome",
+    },
+    "Florence": {
+        "country": "Italy", "state": "Tuscany",
+        "latitude": 43.7696, "longitude": 11.2558,
+        "timezone": "Europe/Rome",
+    },
+    "Venice": {
+        "country": "Italy", "state": "Veneto",
+        "latitude": 45.4408, "longitude": 12.3155,
+        "timezone": "Europe/Rome",
+    },
+}
+
+
+# Country selector groups; India is intentionally pinned first in the UI.
+COUNTRY_CITIES = {
+    "India": sorted([name for name, details in CITIES.items() if details["country"] == "India"]),
+    "Japan": sorted([name for name, details in CITIES.items() if details["country"] == "Japan"]),
+    "China": sorted([name for name, details in CITIES.items() if details["country"] == "China"]),
+    "United States": sorted([name for name, details in CITIES.items() if details["country"] == "United States"]),
+    "United Kingdom": sorted([name for name, details in CITIES.items() if details["country"] == "United Kingdom"]),
+    "France": sorted([name for name, details in CITIES.items() if details["country"] == "France"]),
+    "Russia": sorted([name for name, details in CITIES.items() if details["country"] == "Russia"]),
+    "Brazil": sorted([name for name, details in CITIES.items() if details["country"] == "Brazil"]),
+    "Mexico": sorted([name for name, details in CITIES.items() if details["country"] == "Mexico"]),
+    "Egypt": sorted([name for name, details in CITIES.items() if details["country"] == "Egypt"]),
+    "Thailand": sorted([name for name, details in CITIES.items() if details["country"] == "Thailand"]),
+    "South Africa": sorted([name for name, details in CITIES.items() if details["country"] == "South Africa"]),
+    "Italy": sorted([name for name, details in CITIES.items() if details["country"] == "Italy"]),
 }
