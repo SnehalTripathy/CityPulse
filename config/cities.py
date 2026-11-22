@@ -714,19 +714,19 @@ CITIES = {
 }
 
 
-# Country selector groups; India is intentionally pinned first in the UI.
+# Country selector groups; India is pinned first, followed by alphabetical order.
 COUNTRY_CITIES = {
-    "India": [name for name, details in CITIES.items() if details["country"] == "India"],
-    "Japan": sorted([name for name, details in CITIES.items() if details["country"] == "Japan"]),
-    "China": sorted([name for name, details in CITIES.items() if details["country"] == "China"]),
-    "United States": sorted([name for name, details in CITIES.items() if details["country"] == "United States"]),
-    "United Kingdom": sorted([name for name, details in CITIES.items() if details["country"] == "United Kingdom"]),
-    "France": sorted([name for name, details in CITIES.items() if details["country"] == "France"]),
-    "Russia": sorted([name for name, details in CITIES.items() if details["country"] == "Russia"]),
+    "India": sorted([name for name, details in CITIES.items() if details["country"] == "India"]),
     "Brazil": sorted([name for name, details in CITIES.items() if details["country"] == "Brazil"]),
-    "Mexico": sorted([name for name, details in CITIES.items() if details["country"] == "Mexico"]),
+    "China": sorted([name for name, details in CITIES.items() if details["country"] == "China"]),
     "Egypt": sorted([name for name, details in CITIES.items() if details["country"] == "Egypt"]),
-    "Thailand": sorted([name for name, details in CITIES.items() if details["country"] == "Thailand"]),
-    "South Africa": sorted([name for name, details in CITIES.items() if details["country"] == "South Africa"]),
+    "France": sorted([name for name, details in CITIES.items() if details["country"] == "France"]),
     "Italy": sorted([name for name, details in CITIES.items() if details["country"] == "Italy"]),
+    "Japan": sorted([name for name, details in CITIES.items() if details["country"] == "Japan"]),
+    "Mexico": sorted([name for name, details in CITIES.items() if details["country"] == "Mexico"]),
+    "Russia": sorted([name for name, details in CITIES.items() if details["country"] == "Russia"]),
+    "South Africa": sorted([name for name, details in CITIES.items() if details["country"] == "South Africa"]),
+    "Thailand": sorted([name for name, details in CITIES.items() if details["country"] == "Thailand"]),
+    "United Kingdom": sorted([name for name, details in CITIES.items() if details["country"] == "United Kingdom"]),
+    "United States": sorted([name for name, details in CITIES.items() if details["country"] == "United States"]),
 }
