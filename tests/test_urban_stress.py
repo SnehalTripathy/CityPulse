@@ -82,3 +82,20 @@ def test_index_does_not_use_mobile_station_values():
     )
     assert result["index"] is None
     assert result["air_score"] is None
+
+
+
+def test_index_withholds_composite_when_rainfall_is_missing():
+    now = pd.Timestamp("2026-11-22T18:00:00Z")
+    air = pd.DataFrame([{
+        "parameter":"pm25","unit":"µg/m³","value":20,
+        "datetime_utc":"2026-11-22T17:00:00Z","location_id":1,"is_mobile":False,
+    }])
+    result = calculate_urban_stress(
+        {"apparent_temperature":30,"precipitation":None},
+        air,
+        now=now,
+    )
+    assert result["index"] is None
+    assert result["rain_score"] is None
+    assert "Rainfall input is unavailable" in result["reason"]
