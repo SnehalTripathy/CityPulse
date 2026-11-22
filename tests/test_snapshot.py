@@ -105,3 +105,15 @@ def test_append_snapshot_creates_compact_daily_archive(tmp_path):
     saved = pd.read_csv(daily_path)
     assert len(saved) == 1
     assert saved.iloc[0]["median_value"] == 29.0
+
+
+
+def test_daily_summary_keeps_same_named_stations_with_distinct_location_ids():
+    raw = pd.DataFrame([
+        {"source":"openaq","city":"Test City","station":"Central Monitor","location_id":101,"sensor_id":1001,"parameter":"pm25","value":12,"unit":"µg/m³","datetime_utc":"2026-11-22T10:00:00Z"},
+        {"source":"openaq","city":"Test City","station":"Central Monitor","location_id":102,"sensor_id":1002,"parameter":"pm25","value":48,"unit":"µg/m³","datetime_utc":"2026-11-22T10:00:00Z"},
+    ])
+    daily = build_daily_observation_summary(raw)
+    assert len(daily) == 2
+    assert set(daily["location_id"]) == {101, 102}
+    assert set(daily["median_value"]) == {12, 48}
