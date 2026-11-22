@@ -66,3 +66,19 @@ def test_uniform_station_values_do_not_create_a_relative_cluster():
     assert sample_count == 6
     assert status == "no_cluster"
     assert clusters.empty
+
+
+
+def test_mobile_sensors_do_not_inflate_fixed_station_coverage_grid():
+    air = _air_frame()
+    air["is_mobile"] = False
+    air.loc[air.index[-1], "is_mobile"] = True
+    summary, inventory, grid = build_zone_coverage(
+        air, 12.0, 77.0, now=pd.Timestamp("2026-11-22T18:00:00Z")
+    )
+    assert summary["station_count"] == 6
+    assert summary["fixed_stations"] == 5
+    assert summary["mobile_stations"] == 1
+    assert summary["geocoded_station_count"] == 5
+    assert len(inventory) == 6
+    assert len(grid) >= 1
