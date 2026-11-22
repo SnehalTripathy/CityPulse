@@ -177,8 +177,9 @@ def build_alert_assessment(
             )
             continue
         if summary["value"] >= configured[key]:
+            pollutant_label = "PM2.5" if pollutant == "pm25" else "PM10"
             add(
-                pollutant.upper(), "Median of latest eligible fixed-station readings",
+                pollutant_label, "Median of latest eligible fixed-station readings",
                 float(summary["value"]), configured[key], summary["latest_utc"],
                 "OpenAQ fixed monitoring stations; compatible units normalised to µg/m³",
                 int(summary["station_count"]),
