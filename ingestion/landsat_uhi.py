@@ -46,17 +46,30 @@ def summarize_surface_temperature_contrast(
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
     frame = frame.dropna(subset=list(required))
     frame = frame.loc[frame["temperature_c"].between(-40, 80) & frame["ndvi"].between(-1, 1)]
-    urban = frame.loc[(frame["distance_km"] <= 5) & (frame["ndvi"] <= 0.20), "temperature_c"]
-    vegetated = frame.loc[
-        frame["distance_km"].between(10, 25) & (frame["ndvi"] >= 0.35),
-        "temperature_c",
-    ]
+    urban_mask = (frame["distance_km"] <= 5) & (frame["ndvi"] <= 0.20)
+    vegetated_mask = frame["distance_km"].between(10, 25) & (frame["ndvi"] >= 0.35)
+    urban = frame.loc[urban_mask, "temperature_c"]
+    vegetated = frame.loc[vegetated_mask, "temperature_c"]
+    uncertainty_column = "st_uncertainty_k" if "st_uncertainty_k" in frame.columns else None
+    urban_uncertainty = (
+        pd.to_numeric(frame.loc[urban_mask, uncertainty_column], errors="coerce").dropna()
+        if uncertainty_column else pd.Series(dtype=float)
+    )
+    vegetated_uncertainty = (
+        pd.to_numeric(frame.loc[vegetated_mask, uncertainty_column], errors="coerce").dropna()
+        if uncertainty_column else pd.Series(dtype=float)
+    )
+    all_uncertainty = pd.to_numeric(frame[uncertainty_column], errors="coerce").dropna() if uncertainty_column else pd.Series(dtype=float)
     result = {
         "status": "ready" if len(urban) >= minimum_pixels and len(vegetated) >= minimum_pixels else "insufficient_reference_pixels",
         "urban_pixels": int(len(urban)),
         "reference_pixels": int(len(vegetated)),
         "urban_proxy_median_c": float(urban.median()) if len(urban) else None,
         "vegetated_reference_median_c": float(vegetated.median()) if len(vegetated) else None,
+        "urban_st_uncertainty_median_k": float(urban_uncertainty.median()) if len(urban_uncertainty) else None,
+        "vegetated_st_uncertainty_median_k": float(vegetated_uncertainty.median()) if len(vegetated_uncertainty) else None,
+        "median_st_uncertainty_k": float(all_uncertainty.median()) if len(all_uncertainty) else None,
+        "p90_st_uncertainty_k": float(all_uncertainty.quantile(0.90)) if len(all_uncertainty) else None,
         "surface_temperature_contrast_c": (
             float(urban.median() - vegetated.median())
             if len(urban) >= minimum_pixels and len(vegetated) >= minimum_pixels else None
@@ -266,6 +279,8 @@ def fetch_landsat_surface_temperature_analysis(
                 & np.isfinite(ndvi)
                 & (ndvi >= -1)
                 & (ndvi <= 1)
+                & (red_dn > 0)
+                & (nir_dn > 0)
             )
 
             rows, cols = np.indices((height, width))
