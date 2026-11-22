@@ -56,6 +56,22 @@ st.set_page_config(
 
 ensure_data_dirs()
 
+# Hide the hosting-injected Streamlit header (Fork/GitHub/menu controls).
+st.markdown(
+    """
+    <style>
+    header[data-testid="stHeader"],
+    div[data-testid="stToolbar"],
+    div[data-testid="stDecoration"] {
+        display: none !important;
+        height: 0 !important;
+        visibility: hidden !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 def _streamlit_smtp_settings() -> dict:
     """Read SMTP secrets without requiring them to be copied into process env vars."""
     setting_names = (
