@@ -9,12 +9,12 @@ CityPulse is an interactive urban intelligence platform that brings together wea
 ## What you can explore
 
 - **City Command Center** — an at-a-glance view of current weather conditions, hourly outlook, nearby air-quality readings and the experimental CityPulse Index when sufficient data is available.
-- **City Comparison** — compare up to three cities using live weather, available PM2.5/PM10 observations, rainfall and the experimental CityPulse Index, with timestamps and coverage caveats.
+- **City Comparison** — compare up to three cities using live weather, available PM2.5/PM10 observations, rainfall and the experimental CityPulse Index; inspect daily historical trends when the archive has enough comparable data.
 - **Air Quality Intelligence** — inspect pollutant-level summaries, station counts, sensor readings and observation freshness.
 - **Environmental Analytics** — explore weather forecasts and available historical weather and air-quality observations.
 - **Predictive Intelligence** — view experimental machine-learning estimates when enough historical observations are available and the model performs better than a simple baseline.
 - **Anomaly Detection** — identify unusual weather patterns relative to the platform's collected historical baseline.
-- **Zone Intelligence** — explore nearby monitoring stations on an interactive map, filter by pollutant and inspect station-level readings. Sparse coverage is explicitly flagged.
+- **Zone Intelligence** — inspect returned monitoring stations, their spatial distribution and freshness; screen for relative clusters only when enough recent comparable stations exist; explore mapped green spaces, NASA daytime land-surface temperature imagery and ESA land-cover context.
 - **Scenario Simulator** — adjust environmental assumptions and explore how they affect the project's experimental index.
 - **Methodology** — understand the data sources, index approach and current limitations.
 
@@ -32,6 +32,9 @@ City locations use approximate city-centre coordinates. Weather and air-quality 
 
 - **Weather:** [Open-Meteo](https://open-meteo.com/) — modelled current conditions and weather forecasts.
 - **Air quality:** [OpenAQ](https://openaq.org/) — observations reported by nearby monitoring stations.
+- **Satellite land-surface temperature:** [NASA Global Imagery Browse Services](https://gibs.earthdata.nasa.gov/) — MODIS Terra daytime land-surface temperature imagery (about 1 km).
+- **Land cover:** [ESA WorldCover](https://esa-worldcover.org/en/data-access) — 2021 land-cover classification at 10 m resolution.
+- **Parks and green spaces:** [OpenStreetMap](https://www.openstreetmap.org/) — community-mapped parks, gardens, forests and grassland features.
 
 The platform presents provider weather forecasts separately from its own experimental analytics. Air-quality station coverage, pollutants and observation recency vary between cities. A city appearing in the selector does not guarantee that nearby live air-quality readings are available.
 
@@ -52,6 +55,10 @@ The current heuristic weights these components at 50%, 35% and 15%, respectively
 - Weather values are modelled grid-cell data, not street-level measurements.
 - Air-quality readings come from monitoring stations; coverage and reporting times are not uniform.
 - Historical records build over time as scheduled data collection runs. Newly added cities may not yet have sufficient history for trend analysis or machine-learning features.
+- Historical city trends use common UTC calendar-day windows, report coverage and remain unavailable until enough archived observations exist; missing days are not filled.
+- Relative pollution clusters use only recent, comparable station observations and are not official thresholds, health warnings or interpolated neighbourhood measurements.
+- NASA surface-temperature imagery is a satellite context layer, not near-surface air temperature or a computed urban-heat-island score. ESA WorldCover is a dated 2021 layer.
+- OpenStreetMap green-space coverage depends on community mapping. Park proximity is straight-line distance to mapped feature centres, not walking-route accessibility.
 - Predictive and anomaly-detection features are experimental and are shown only when their data requirements are met.
 - CityPulse is an exploratory information platform, not an emergency-response or health-advice service.
 
