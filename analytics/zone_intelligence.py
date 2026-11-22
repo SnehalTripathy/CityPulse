@@ -30,7 +30,8 @@ def build_zone_coverage(
         "station_count": 0, "geocoded_station_count": 0, "nearest_station_km": None,
         "median_station_distance_km": None, "farthest_station_km": None,
         "occupied_grid_cells": 0, "fresh_stations": 0, "recent_stations": 0,
-        "stale_stations": 0, "query_radius_km": 25.0,
+        "stale_stations": 0, "fixed_stations": 0, "mobile_stations": 0,
+        "query_radius_km": 25.0,
     }
     station_columns = [
         "station", "latitude", "longitude", "distance_km", "latest_utc",
@@ -83,6 +84,7 @@ def build_zone_coverage(
             "freshness": freshness,
             "pollutant_count": int(group["parameter"].nunique()) if "parameter" in group else 0,
             "reading_count": int(len(group)),
+            "is_mobile": bool(group["is_mobile"].fillna(False).astype(bool).any()) if "is_mobile" in group else False,
         })
     inventory = pd.DataFrame(rows)
     mapped = inventory.dropna(subset=["latitude", "longitude"]).copy()
@@ -112,6 +114,8 @@ def build_zone_coverage(
         "fresh_stations": int((inventory["freshness"] == "Fresh").sum()),
         "recent_stations": int((inventory["freshness"] == "Recent").sum()),
         "stale_stations": int((inventory["freshness"] == "Stale").sum()),
+        "mobile_stations": int(inventory["is_mobile"].sum()) if "is_mobile" in inventory else 0,
+        "fixed_stations": int((~inventory["is_mobile"]).sum()) if "is_mobile" in inventory else int(len(inventory)),
         "query_radius_km": 25.0,
     }
     inventory = inventory.sort_values(["distance_km", "station"], na_position="last").reset_index(drop=True)
@@ -150,7 +154,12 @@ def detect_observed_hotspot_clusters(
         now = now.tz_localize("UTC")
     else:
         now = now.tz_convert("UTC")
-    frame = frame.loc[frame["datetime_utc"] >= now - pd.Timedelta(hours=freshness_hours)]
+    frame = frame.loc[
+        (frame["datetime_utc"] >= now - pd.Timedelta(hours=freshness_hours))
+        & (frame["datetime_utc"] <= now + pd.Timedelta(minutes=15))
+    ].copy()
+    if "is_mobile" in frame.columns:
+        frame = frame.loc[~frame["is_mobile"].fillna(False).astype(bool)].copy()
     if frame.empty:
         return "no_fresh_observations", pd.DataFrame(columns=result_columns), 0
 
