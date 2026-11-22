@@ -29,17 +29,17 @@ This is the working project checklist. Check an item only after implementation a
   - [x] Add multi-scene Landsat Collection 2 Level-2 surface-temperature contrast, using QA-masked thermal/reflectance pixels, urban/vegetated proxy pools and ST-QA uncertainty; label as exploratory, not climatological or official UHI
   - [x] Add ESA WorldCover 2021 and OpenStreetMap green-space layers with straight-line proximity
   - [x] Add bounded OSM walk-network estimates with snap-distance/route caveats; no public park entrance or citywide network completeness is claimed
-- [ ] **3. Environmental Health & Exposure**
-  - [ ] Add population distribution and exposure overlays using reputable gridded data
-  - [ ] Estimate population exposed to elevated heat or pollution with documented assumptions
-  - [ ] Add heat vulnerability / sensitive-population indicators where defensible data exists
-  - [ ] Show uncertainty and avoid clinical or individual health claims
-- [ ] **4. Smart Alerts & Recommendations**
-  - [ ] Configurable thresholds for heat, rainfall and pollutant readings
-  - [ ] Alert on observed threshold crossings and forecast risk, clearly distinguished
-  - [ ] Explain which measurements triggered an alert
-  - [ ] Recommend practical, source-grounded mitigation actions
-  - [ ] Add delivery channel and user preferences only after alert logic is validated
+- [x] **3. Environmental Health & Exposure — first implementation**
+  - [x] Add WorldPop Global2 population distribution using the documented 100 m estimates, with a 1 km grid overlay and 1/3/5/10 km city-centre catchment counts
+  - [x] Estimate distance-weighted population near an elevated city-centre heat signal or threshold-crossing fixed pollution monitors using the WorldPop exposure endpoint; label as proximity estimates, not people confirmed affected
+  - [x] Add under-5 and age-65+ demographic context as cautious sensitivity indicators; do not produce an unsupported composite heat-vulnerability score
+  - [x] Show the WorldPop year, source, licence, buffer assumptions and limitations; avoid clinical or individual health claims
+- [x] **4. Smart Alerts & Recommendations — first implementation**
+  - [x] Add session-configurable thresholds for apparent temperature, preceding-hour rainfall, PM2.5 and PM10
+  - [x] Separate current modelled weather conditions, next-24-hour provider forecast triggers and recent fixed-station particulate triggers
+  - [x] Explain each trigger with its value, configured threshold, timestamp, source and eligible station count
+  - [x] Provide practical next steps tied to heat, rainfall and particulate triggers; distinguish user triggers from official warnings
+  - [ ] Add alert persistence, notification delivery channels and user preferences only after the trigger logic is validated
 - [ ] **5. Data Quality & Confidence Layer**
   - [x] Per-source freshness and last-observed timestamp
   - [ ] Sensor/station coverage and missing-data indicators
@@ -80,9 +80,17 @@ This is the working project checklist. Check an item only after implementation a
 - [ ] Add population exposure / planning insights for policymakers
 - [ ] Add alert preferences and delivery integrations after validation
 
+## Priority 3–4 readiness note
+
+The first Environmental Health & Exposure implementation uses WorldPop Global2 (100 m source data, optional 1 km display grid, CC BY 4.0) and its catchment, age-group and distance-weighted exposure endpoints. The default population year is 2025. Counts describe an approximate city-centre buffer, not an administrative city boundary or live census. Age groups are context only; no vulnerability score is inferred.
+
+The first Smart Alerts implementation provides configurable, session-only thresholds for modelled current apparent temperature, preceding-hour rainfall, next-24-hour forecast values and recent fixed-station PM medians. Each trigger identifies its source, value, timestamp and station count where applicable. Recommendations are informational and are not official warnings. Email/SMS/push delivery, persistent alert history and personal notification preferences remain out of scope until logic and external data availability are validated.
+
+The WorldPop and alert modules are covered by automated tests. Live WorldPop service availability, population-map display and alert-page behaviour still require a deployed Streamlit check.
+
 ## Priority 1–2 readiness note
 
-The City Comparison Engine and Advanced Zone Intelligence implementations are code-complete, with 61 automated tests passing. Priority 1 is not release-verified until the scheduled collector creates both remote archives and enough real multi-city dates accumulate. Priority 2 is not live-verified until the deployed station, green-space and Landsat views have been checked against their external providers. These real-data checks must remain open; do not replace them with synthetic observations.
+The City Comparison Engine and Advanced Zone Intelligence implementations are code-complete, with 71 automated tests passing. Priority 1 is not release-verified until the scheduled collector creates both remote archives and enough real multi-city dates accumulate. Priority 2 is not live-verified until the deployed station, green-space and Landsat views have been checked against their external providers. These real-data checks must remain open; do not replace them with synthetic observations.
 
 ## Final project closeout
 - [ ] Remove this master checklist (`PROJECT_ROADMAP.md`) from the public GitHub repository after all project features, release checks and documentation are complete.
@@ -94,7 +102,7 @@ The City Comparison Engine and Advanced Zone Intelligence implementations are co
 - [x] Upgrade Zone Intelligence station map and station drill-down
 - [x] Add a transparent data freshness / coverage panel
 - [x] Add or update tests for city comparison metrics, timezone handling, air-quality freshness and global city registry
-- [x] Run CI and resolve regressions (56 tests passed in the latest verified run)
+- [x] Run CI and resolve regressions (61 tests passed in the latest verified run)
 - [ ] Verify the deployed Streamlit app where deployment status is observable
 
 ## Release quality gates
@@ -103,7 +111,7 @@ The City Comparison Engine and Advanced Zone Intelligence implementations are co
 - [x] Distinguish modelled grid-cell weather, OpenAQ station measurements, provider forecasts, experimental CityPulse outputs and spatial estimates in the new comparison/zone views
 - [x] Show timestamps, units, source provenance, station-age ranges and missing/future-data states in comparison and zone views
 - [x] Confirm city timezone handling for every country (all registry timezones validated and passed to weather requests)
-- [x] Automated tests pass (61 tests passed in GitHub Actions; latest completed verified run 45041765718)
+- [x] Automated tests pass (61 tests passed in GitHub Actions before starting Priority 3 and 4; new 71-test suite is awaiting verification)
 - [x] README accurately describes released features and limitations
 - [ ] Streamlit deployment successfully starts and core pages render
 - [ ] Recheck OpenStreetMap green-space lookup after adding a non-default CityPulse User-Agent (live 406 observed before this fix); external OpenStreetMap/ESA/Landsat service availability is not covered by CI
