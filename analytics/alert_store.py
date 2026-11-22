@@ -19,6 +19,13 @@ DEFAULT_PREFERENCES = {
     "email_enabled": False,
 }
 
+PREFERENCE_BOUNDS = {
+    "heat_c": (30.0, 50.0),
+    "rainfall_mm": (1.0, 80.0),
+    "pm25_ug_m3": (10.0, 250.0),
+    "pm10_ug_m3": (10.0, 400.0),
+}
+
 
 def _db_path(path: str | Path | None = None) -> Path:
     return Path(path or os.getenv("CITYPULSE_STATE_DB", "data/processed/citypulse_state.sqlite3"))
@@ -68,9 +75,10 @@ def _normalise_preferences(preferences: dict | None, *, strict: bool) -> dict:
             value = float(values[key])
         except (TypeError, ValueError):
             value = float("nan")
-        if not pd.notna(value) or value < 0 or value == float("inf"):
+        lower, upper = PREFERENCE_BOUNDS[key]
+        if not pd.notna(value) or not lower <= value <= upper or not pd.notna(value):
             if strict:
-                raise ValueError(f"Invalid alert threshold: {key}")
+                raise ValueError(f"Alert threshold {key} must be between {lower:g} and {upper:g}.")
             value = float(DEFAULT_PREFERENCES[key])
         cleaned[key] = value
 
