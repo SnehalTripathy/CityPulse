@@ -55,3 +55,19 @@ def test_daily_archive_supports_long_range_trends_and_mg_conversion():
     assert a_first["value"] == 20
     assert a_first["reading_count"] == 8
     assert coverage.set_index("City").loc["A", "Days with data"] == 2
+
+
+
+def test_trend_aggregation_uses_location_ids_not_duplicate_station_names():
+    daily = pd.DataFrame([
+        {"city":"A","source":"openaq","station":"Central Monitor","location_id":1,"parameter":"pm25","unit":"µg/m³","median_value":10,"reading_count":1,"date":"2026-11-21T00:00:00Z"},
+        {"city":"A","source":"openaq","station":"Central Monitor","location_id":2,"parameter":"pm25","unit":"µg/m³","median_value":30,"reading_count":1,"date":"2026-11-21T00:00:00Z"},
+        {"city":"B","source":"openaq","station":"B Monitor","location_id":3,"parameter":"pm25","unit":"µg/m³","median_value":20,"reading_count":1,"date":"2026-11-21T00:00:00Z"},
+    ])
+    frame, _ = build_city_trend_frame(
+        daily, ["A", "B"], "PM2.5 (µg/m³)", days=7,
+        now=pd.Timestamp("2026-11-22T12:00:00Z"),
+    )
+    a = frame.loc[(frame["city"] == "A") & (frame["date"] == pd.Timestamp("2026-11-21T00:00:00Z"))].iloc[0]
+    assert a["station_count"] == 2
+    assert a["value"] == 20
