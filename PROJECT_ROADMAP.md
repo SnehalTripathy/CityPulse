@@ -15,12 +15,12 @@ This is the working project checklist. Check an item only after implementation a
 
 ## Five priority product capabilities
 - [ ] **1. City Comparison Engine**
-  - [ ] Compare 2–3 selected cities side by side
-  - [ ] Compare weather, PM2.5, PM10, rainfall and the experimental CityPulse Index
-  - [ ] Show pollutant availability, observation timestamps and fair-comparison caveats
+  - [x] Compare 2–3 selected cities side by side
+  - [x] Compare weather, PM2.5, PM10, rainfall and the experimental CityPulse Index
+  - [x] Show pollutant availability, observation timestamps and fair-comparison caveats
   - [ ] Add multi-city trend comparison once sufficient history exists
 - [ ] **2. Advanced Zone Intelligence**
-  - [ ] Interactive station map with pollutant-aware detail and station selection
+  - [x] Interactive station map with pollutant-aware detail and station selection
   - [ ] Show station density, coverage gaps and data freshness
   - [ ] Add spatial pollution hotspot analysis only where station density supports it
   - [ ] Add urban heat-island mapping using suitable satellite/land-surface data
@@ -37,7 +37,7 @@ This is the working project checklist. Check an item only after implementation a
   - [ ] Recommend practical, source-grounded mitigation actions
   - [ ] Add delivery channel and user preferences only after alert logic is validated
 - [ ] **5. Data Quality & Confidence Layer**
-  - [ ] Per-source freshness and last-observed timestamp
+  - [x] Per-source freshness and last-observed timestamp
   - [ ] Sensor/station coverage and missing-data indicators
   - [ ] Unit, timestamp and plausible-range validation
   - [ ] Confidence/coverage labels based on observable evidence, not invented probabilities
@@ -45,15 +45,15 @@ This is the working project checklist. Check an item only after implementation a
 
 ## Phase 1 — Better intelligence
 - [ ] Normalize pollutant names and units across sources
-- [ ] Display pollutant-level analytics and time freshness
+- [x] Display pollutant-level analytics and time freshness
 - [ ] Separate official AQI values (where an official feed exists) from the experimental CityPulse Index
 - [ ] Build comparable city metrics with common time windows and units
 - [ ] Add source provenance and quality indicators to dashboard metrics
 - [ ] Expand historical views after validating persistent archive access
 
 ## Phase 2 — Geospatial intelligence
-- [ ] Replace the basic station pin view with a richer interactive station map
-- [ ] Add station-level drill-down and spatial coverage gaps
+- [x] Replace the basic station pin view with a richer interactive station map
+- [x] Add station-level drill-down and a sparse-coverage warning
 - [ ] Add pollution hotspot interpolation only when station density and validation permit
 - [ ] Add satellite-derived land-surface temperature / urban heat-island layers
 - [ ] Add vegetation / tree-cover / green-space layers
@@ -77,19 +77,19 @@ This is the working project checklist. Check an item only after implementation a
 - [ ] Add alert preferences and delivery integrations after validation
 
 ## Five-hour implementation sprint — target 12:30 AM IST, 23 November 2026
-- [ ] Fix global-city timezone handling in weather requests
-- [ ] Build a 2–3 city comparison view using live provider responses
-- [ ] Add pollutant breakdown, station count and reading freshness to air-quality analytics
-- [ ] Upgrade Zone Intelligence station map and station drill-down
-- [ ] Add a transparent data freshness / coverage panel
-- [ ] Add or update tests for the new data and comparison logic
-- [ ] Run CI and resolve regressions
+- [x] Fix global-city timezone handling in weather requests
+- [x] Build a 2–3 city comparison view using live provider responses
+- [x] Add pollutant breakdown, station count and reading freshness to air-quality analytics
+- [x] Upgrade Zone Intelligence station map and station drill-down
+- [x] Add a transparent data freshness / coverage panel
+- [x] Add or update tests for timezone handling, air-quality freshness and global city registry
+- [x] Run CI and resolve regressions (18 tests passed)
 - [ ] Verify the deployed Streamlit app where deployment status is observable
 
 ## Release quality gates
 - [ ] No synthetic or silently imputed live environmental measurements
 - [ ] Distinguish modelled weather, sensor measurements, provider forecasts and CityPulse model outputs
-- [ ] Show timestamps, units, sources and missing-data states
+- [x] Show timestamps, units, sources and missing-data states for current live comparison and air-quality views
 - [ ] Confirm city timezone handling for every country
 - [ ] Automated tests pass
 - [ ] README accurately describes released features and limitations
