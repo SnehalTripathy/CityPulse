@@ -159,10 +159,9 @@ if not weather.empty:
     weather = add_weather_stress(weather)
 
 st.markdown('<div class="pulse">LIVE URBAN INTELLIGENCE &nbsp;·&nbsp; PILOT 01</div>', unsafe_allow_html=True)
-hero_title, hero_action = st.columns([5, 2], vertical_alignment="top")
+hero_title, hero_action = st.columns([5, 2], vertical_alignment="center")
 with hero_title:
     st.title(f"{city_name} Urban Stress Monitor")
-    st.markdown('<p class="subtle">See the city in colour — environmental signals, emerging patterns and experimental urban intelligence in one workspace.</p>', unsafe_allow_html=True)
 with hero_action:
     st.button(
         "Explore Zone Intelligence  →",
@@ -172,6 +171,7 @@ with hero_action:
         on_click=_open_zone_intelligence,
         help=f"Open the zone intelligence view for {city_name}",
     )
+st.markdown('<p class="subtle">See the city in colour — environmental signals, emerging patterns and experimental urban intelligence in one workspace.</p>', unsafe_allow_html=True)
 st.markdown('<div style="height:1px;background:linear-gradient(90deg,#39D5F6,#A78BFA,#FB7185,#F59E0B,#A3E635);opacity:.7;margin:1rem 0 1.35rem;border-radius:4px"></div>', unsafe_allow_html=True)
 
 if page == "Command Center":
