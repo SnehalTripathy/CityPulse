@@ -25,6 +25,11 @@ def _unit_to_ug_m3(unit: object) -> float | None:
 def _latest_citywide_pm(air: pd.DataFrame, now: pd.Timestamp) -> dict[str, float]:
     if air.empty or not {"parameter", "value", "unit", "datetime_utc"}.issubset(air.columns):
         return {}
+    now = pd.Timestamp(now)
+    if now.tzinfo is None:
+        now = now.tz_localize("UTC")
+    else:
+        now = now.tz_convert("UTC")
 
     frame = air.copy()
     frame["pollutant"] = frame["parameter"].map(_normalise_parameter)
