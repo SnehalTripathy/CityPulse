@@ -82,8 +82,8 @@ This is the working project checklist. Check an item only after implementation a
 - [x] Add pollutant breakdown, station count and reading freshness to air-quality analytics
 - [x] Upgrade Zone Intelligence station map and station drill-down
 - [x] Add a transparent data freshness / coverage panel
-- [x] Add or update tests for timezone handling, air-quality freshness and global city registry
-- [x] Run CI and resolve regressions (18 tests passed)
+- [x] Add or update tests for city comparison metrics, timezone handling, air-quality freshness and global city registry
+- [x] Run CI and resolve regressions (20 tests passed, latest run green)
 - [ ] Verify the deployed Streamlit app where deployment status is observable
 
 ## Release quality gates
