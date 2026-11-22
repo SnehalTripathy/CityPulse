@@ -87,6 +87,8 @@ def interpolate_station_surface(
     selected = selected.loc[
         (selected["datetime_utc"] >= cutoff) & (selected["datetime_utc"] <= now + pd.Timedelta(minutes=15))
     ].copy()
+    if "is_mobile" in selected.columns:
+        selected = selected.loc[~selected["is_mobile"].fillna(False).astype(bool)].copy()
     if selected.empty:
         return "no_fresh_observations", empty, diagnostics
 
