@@ -122,9 +122,21 @@ def build_city_comparison_record(
     else:
         stations = 0
 
+    air_frame = air.copy()
+    if "is_mobile" in air_frame.columns:
+        mobile_mask = air_frame["is_mobile"].map(
+            lambda value: str(value).strip().lower() in {"true", "1", "yes", "y"}
+        )
+    else:
+        mobile_mask = pd.Series(False, index=air_frame.index)
+    station_key = "location_id" if "location_id" in air_frame.columns else "station"
+    fixed_stations = int(air_frame.loc[~mobile_mask, station_key].nunique(dropna=True)) if station_key in air_frame.columns else 0
+    mobile_stations = int(air_frame.loc[mobile_mask, station_key].nunique(dropna=True)) if station_key in air_frame.columns else 0
+
     return {
         "City": city_name,
         "Weather observation time": current_weather.get("time"),
+        "Weather time zone": current_weather.get("timezone"),
         "Temperature (°C)": current_weather.get("temperature_2m"),
         "Feels like (°C)": current_weather.get("apparent_temperature"),
         "Humidity (%)": current_weather.get("relative_humidity_2m"),
@@ -139,4 +151,6 @@ def build_city_comparison_record(
         "Air reading age (h)": float(summary["age_hours"].min()) if not summary.empty else None,
         "CityPulse Index": stress.get("index"),
         "Monitoring stations": stations,
+        "Fixed monitoring stations": fixed_stations,
+        "Mobile sensors": mobile_stations,
     }
