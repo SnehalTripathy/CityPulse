@@ -101,7 +101,7 @@ def test_append_snapshot_creates_compact_daily_archive(tmp_path):
         "observed_at_utc":"2026-11-22T10:02:00Z","latitude":12.9716,"longitude":77.5946,
     }])
     append_snapshot(data, path)
-    daily_path = tmp_path / "data" / "processed" / "daily_city_observations.csv"
+    daily_path = tmp_path / "data" / "processed" / "daily_city_observations.csv.gz"
     saved = pd.read_csv(daily_path)
     assert len(saved) == 1
     assert saved.iloc[0]["median_value"] == 29.0
