@@ -35,7 +35,7 @@ def build_zone_coverage(
     }
     station_columns = [
         "station", "location_id", "latitude", "longitude", "distance_km", "latest_utc",
-        "age_hours", "freshness", "is_mobile", "pollutant_count", "reading_count",
+        "age_hours", "freshness", "future_timestamp_readings", "is_mobile", "pollutant_count", "reading_count",
         "provider", "owner", "timezone", "licenses",
     ]
     if air.empty or "datetime_utc" not in air.columns:
@@ -60,10 +60,20 @@ def build_zone_coverage(
         now = now.tz_convert("UTC")
 
     rows = []
+    future_limit = now + pd.Timedelta(minutes=15)
     for station_id, group in frame.groupby(key, dropna=False):
-        latest = group["datetime_utc"].max()
-        age = max(0.0, (now - latest).total_seconds() / 3600.0)
-        freshness = "Fresh" if age <= 6 else ("Recent" if age <= 48 else "Stale")
+        future_rows = group.loc[group["datetime_utc"] > future_limit]
+        valid_group = group.loc[group["datetime_utc"] <= future_limit].copy()
+        if valid_group.empty:
+            latest = group["datetime_utc"].min()
+            age = None
+            freshness = "Future timestamp"
+            source_group = group
+        else:
+            latest = valid_group["datetime_utc"].max()
+            age = max(0.0, (now - latest).total_seconds() / 3600.0)
+            freshness = "Fresh" if age <= 6 else ("Recent" if age <= 48 else "Stale")
+            source_group = valid_group
         coord_rows = group.dropna(subset=["latitude", "longitude"])
         lat = float(coord_rows["latitude"].median()) if not coord_rows.empty else None
         lon = float(coord_rows["longitude"].median()) if not coord_rows.empty else None
@@ -82,10 +92,11 @@ def build_zone_coverage(
             "longitude": lon,
             "distance_km": distance_km,
             "latest_utc": latest,
-            "age_hours": round(age, 1),
+            "age_hours": round(age, 1) if age is not None else None,
             "freshness": freshness,
-            "pollutant_count": int(group["parameter"].nunique()) if "parameter" in group else 0,
-            "reading_count": int(len(group)),
+            "future_timestamp_readings": int(len(future_rows)),
+            "pollutant_count": int(source_group["parameter"].nunique()) if "parameter" in source_group else 0,
+            "reading_count": int(len(source_group)),
             "is_mobile": bool(group["is_mobile"].map(lambda value: str(value).strip().lower() in {"true", "1", "yes", "y"}).any()) if "is_mobile" in group else False,
             "provider": str(group["provider"].dropna().iloc[0]) if "provider" in group and group["provider"].notna().any() else "Unavailable",
             "owner": str(group["owner"].dropna().iloc[0]) if "owner" in group and group["owner"].notna().any() else "Unavailable",
@@ -121,6 +132,7 @@ def build_zone_coverage(
         "fresh_stations": int((fixed_inventory["freshness"] == "Fresh").sum()),
         "recent_stations": int((fixed_inventory["freshness"] == "Recent").sum()),
         "stale_stations": int((fixed_inventory["freshness"] == "Stale").sum()),
+        "future_timestamp_stations": int((fixed_inventory["freshness"] == "Future timestamp").sum()),
         "mobile_stations": int(inventory["is_mobile"].sum()) if "is_mobile" in inventory else 0,
         "fixed_stations": int((~inventory["is_mobile"]).sum()) if "is_mobile" in inventory else int(len(inventory)),
         "query_radius_km": 25.0,
