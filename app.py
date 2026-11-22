@@ -29,6 +29,7 @@ from ingestion.landsat_uhi import fetch_landsat_surface_temperature_analysis
 from analytics.urban_stress import calculate_urban_stress, calculate_projected_urban_stress
 from analytics.scenario import build_scenario_weather
 from analytics.alerts import DEFAULT_ALERT_THRESHOLDS, build_alert_assessment
+from analytics.alert_store import (load_city_preferences, save_city_preferences, record_alerts, list_alert_history, clear_alert_history, mark_notification, send_alert_email, email_delivery_configured)
 from analytics.exposure import build_pollution_event_features
 from ingestion.worldpop import (
     DEFAULT_YEAR as WORLDPOP_DEFAULT_YEAR,
@@ -1463,6 +1464,15 @@ elif page == "Environmental Health & Exposure":
                 use_container_width=True,
                 hide_index=True,
             )
+                # Evidence availability is shown separately from demographic context; no synthetic confidence score.
+        exposure_quality = source_quality_summary(weather_current, air)
+        exposure_air = exposure_quality["air_quality"]
+        st.markdown("### Exposure evidence and reliability")
+        evidence_cols = st.columns(3)
+        evidence_cols[0].metric("Population layer", "Available" if total_pop is not None else "Unavailable")
+        evidence_cols[1].metric("Weather input age", f"{exposure_quality['weather_age_hours']:.1f} h" if exposure_quality["weather_age_hours"] is not None else "Unavailable")
+        evidence_cols[2].metric("Air observations", f"{exposure_air['rows_valid']:,} valid / {exposure_air['rows_total']:,} inspected")
+        st.caption("Reliability is described through source availability, freshness and validation counts—not a fabricated confidence percentage. Population estimates are modelled and dated; exposure is a proximity estimate, not a measured count of affected people.")
         st.info("Age-group counts are demographic context only. Children under 5 and adults 65+ are not converted into a heat-vulnerability score; vulnerability also depends on health, housing, income, occupation, cooling access and other local factors.")
 
         if st.checkbox("Load 1 km population distribution overlay", value=False, key="worldpop_load_raster"):
@@ -1619,62 +1629,68 @@ elif page == "Data Quality & Confidence":
 elif page == "Smart Alerts & Recommendations":
     st.subheader("Smart alerts & recommendations")
     st.caption("Configure prototype triggers for current provider conditions, hourly forecasts and recent fixed-station readings. These are not official warnings or regulatory AQI categories.")
+    # Preferences/history use SQLite. Configure CITYPULSE_STATE_DB on a durable volume to
+    # retain state across container replacement; Streamlit ephemeral disks are not durable.
+    try:
+        saved_preferences = load_city_preferences(city_name)
+    except Exception as exc:
+        saved_preferences = {**DEFAULT_ALERT_THRESHOLDS, "email_enabled": False}
+        st.warning(f"Persistent alert settings are unavailable; defaults are being used. Details: {exc}")
+    for key, preference_key in [
+        ("alert_heat_threshold", "heat_c"),
+        ("alert_rainfall_threshold", "rainfall_mm"),
+        ("alert_pm25_threshold", "pm25_ug_m3"),
+        ("alert_pm10_threshold", "pm10_ug_m3"),
+    ]:
+        st.session_state.setdefault(key, float(saved_preferences.get(preference_key, DEFAULT_ALERT_THRESHOLDS[preference_key])))
     threshold_cols = st.columns(2)
     with threshold_cols[0]:
-        heat_threshold = st.slider(
-            "Apparent temperature trigger (°C)", 30.0, 50.0,
-            float(st.session_state.get("alert_heat_threshold", DEFAULT_ALERT_THRESHOLDS["heat_c"])),
-            0.5, key="alert_heat_threshold",
-        )
-        rainfall_threshold = st.slider(
-            "Hourly precipitation trigger (mm)", 1.0, 80.0,
-            float(st.session_state.get("alert_rainfall_threshold", DEFAULT_ALERT_THRESHOLDS["rainfall_mm"])),
-            1.0, key="alert_rainfall_threshold",
-        )
+        heat_threshold = st.slider("Apparent temperature trigger (°C)", 30.0, 50.0, float(st.session_state["alert_heat_threshold"]), 0.5, key="alert_heat_threshold")
+        rainfall_threshold = st.slider("Hourly precipitation trigger (mm)", 1.0, 80.0, float(st.session_state["alert_rainfall_threshold"]), 1.0, key="alert_rainfall_threshold")
     with threshold_cols[1]:
-        pm25_threshold = st.slider(
-            "PM2.5 trigger (µg/m³)", 10.0, 250.0,
-            float(st.session_state.get("alert_pm25_threshold", DEFAULT_ALERT_THRESHOLDS["pm25_ug_m3"])),
-            5.0, key="alert_pm25_threshold",
-        )
-        pm10_threshold = st.slider(
-            "PM10 trigger (µg/m³)", 10.0, 400.0,
-            float(st.session_state.get("alert_pm10_threshold", DEFAULT_ALERT_THRESHOLDS["pm10_ug_m3"])),
-            5.0, key="alert_pm10_threshold",
-        )
-    thresholds = {
-        "heat_c":heat_threshold,
-        "rainfall_mm":rainfall_threshold,
-        "pm25_ug_m3":pm25_threshold,
-        "pm10_ug_m3":pm10_threshold,
-    }
+        pm25_threshold = st.slider("PM2.5 trigger (µg/m³)", 10.0, 250.0, float(st.session_state["alert_pm25_threshold"]), 5.0, key="alert_pm25_threshold")
+        pm10_threshold = st.slider("PM10 trigger (µg/m³)", 10.0, 400.0, float(st.session_state["alert_pm10_threshold"]), 5.0, key="alert_pm10_threshold")
+    email_enabled = st.checkbox(
+        "Enable email notifications for newly recorded alerts",
+        value=bool(saved_preferences.get("email_enabled", False)),
+        key=f"alert_email_enabled_{city_name}",
+        help="Notifications go only to the deployment administrator address configured in environment/secrets. The app has no individual user accounts.",
+    )
+    thresholds = {"heat_c":heat_threshold,"rainfall_mm":rainfall_threshold,"pm25_ug_m3":pm25_threshold,"pm10_ug_m3":pm10_threshold,"email_enabled":email_enabled}
+    if st.button("Save alert preferences", type="primary", key="save_alert_preferences"):
+        try:
+            save_city_preferences(city_name, thresholds)
+            st.success(f"Alert preferences saved for {city_name}.")
+        except Exception as exc:
+            st.error(f"Could not save alert preferences: {exc}")
+    if email_enabled and not email_delivery_configured():
+        st.warning("Email delivery is not configured. Set CITYPULSE_SMTP_HOST, CITYPULSE_SMTP_PORT, CITYPULSE_SMTP_FROM and CITYPULSE_ALERT_EMAIL; optionally set CITYPULSE_SMTP_USERNAME and CITYPULSE_SMTP_PASSWORD.")
+    elif email_enabled:
+        st.caption("Email delivery is configured for the deployment administrator address.")
     assessment = build_alert_assessment(weather_current, weather, air, thresholds)
-    # Session-scoped alert history: records only newly observed trigger signatures.
-    if "citypulse_alert_history" not in st.session_state:
-        st.session_state["citypulse_alert_history"] = []
-    history_rows = st.session_state["citypulse_alert_history"]
-    current_signatures = set()
-    if not assessment["alerts"].empty:
-        for row in assessment["alerts"].to_dict(orient="records"):
-            signature = (city_name, row["Signal"], row["Trigger basis"], str(row["Time"]), float(row["Value"]))
-            current_signatures.add(signature)
-            if signature not in st.session_state.setdefault("citypulse_alert_signatures", set()):
-                history_rows.append({"City":city_name, **row})
-                st.session_state["citypulse_alert_signatures"].add(signature)
+    try:
+        newly_recorded = record_alerts(city_name, assessment["alerts"])
+    except Exception as exc:
+        newly_recorded = []
+        st.warning(f"Durable alert history is unavailable. Details: {exc}")
+    if newly_recorded and email_enabled:
+        sent, delivery_error = send_alert_email(city_name, newly_recorded)
+        for alert in newly_recorded:
+            try:
+                mark_notification(alert["fingerprint"], "sent" if sent else "failed", delivery_error)
+            except Exception:
+                pass
+        if sent:
+            st.success(f"Email notification sent for {len(newly_recorded)} new alert event(s).")
+        else:
+            st.warning(f"New alert(s) were recorded, but email delivery failed: {delivery_error}")
     st.divider()
     st.markdown("### Trigger assessment")
     if assessment["alerts"].empty:
         st.info("No configured thresholds are crossed by the currently available inputs. This does not mean conditions are risk-free.")
     else:
         st.warning(f"{len(assessment['alerts'])} configured trigger(s) crossed in the available data.")
-        st.dataframe(
-            assessment["alerts"].style.format({
-                "Value":"{:.1f}",
-                "Configured threshold":"{:.1f}",
-            }),
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.dataframe(assessment["alerts"].style.format({"Value":"{:.1f}","Configured threshold":"{:.1f}"}), use_container_width=True, hide_index=True)
         st.markdown("### Recommended next steps")
         for recommendation in assessment["recommendations"]:
             st.markdown(f"**{recommendation['signal']}**")
@@ -1684,18 +1700,25 @@ elif page == "Smart Alerts & Recommendations":
             st.write(f"• {note}")
         st.caption("Weather conditions and forecasts are Open-Meteo modelled grid-cell data. PM medians use the latest eligible fixed OpenAQ station values no more than 24 hours old, normalized to µg/m³. Missing, stale, incompatible and mobile readings do not trigger a PM alert.")
     st.markdown("### Alert history")
-    st.caption("This history is retained only in the current Streamlit browser session. It is not a server-side notification or durable account history.")
-    if history_rows:
-        history_frame = pd.DataFrame(history_rows)
-        st.dataframe(history_frame,use_container_width=True,hide_index=True)
-        st.download_button("Export alert history CSV",history_frame.to_csv(index=False).encode("utf-8"),file_name=f"{city_name.lower().replace(' ','_')}_alert_history.csv",mime="text/csv")
-        if st.button("Clear session alert history",key="clear_alert_history"):
-            st.session_state["citypulse_alert_history"]=[]
-            st.session_state["citypulse_alert_signatures"]=set()
-            st.rerun()
+    st.caption("Alert events are durably stored in SQLite and deduplicated by city, signal, trigger basis, timestamp, value and threshold. Persistence across redeployments requires a durable mounted volume; otherwise the host may reset the database.")
+    try:
+        history_frame = list_alert_history(city_name)
+    except Exception as exc:
+        history_frame = pd.DataFrame()
+        st.warning(f"Could not load durable alert history: {exc}")
+    if not history_frame.empty:
+        st.dataframe(history_frame, use_container_width=True, hide_index=True)
+        st.download_button("Export alert history CSV", history_frame.to_csv(index=False).encode("utf-8"), file_name=f"{city_name.lower().replace(' ','_')}_alert_history.csv", mime="text/csv")
+        if st.button("Clear saved alert history for this city", key="clear_alert_history"):
+            try:
+                clear_alert_history(city_name)
+                st.success("Saved alert history cleared for this city.")
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Could not clear alert history: {exc}")
     else:
-        st.info("No threshold crossings have been recorded in this browser session.")
-    st.caption("Thresholds are adjustable for this browser session only. Alerts are recalculated when the page refreshes; no email, SMS or push notifications are sent. Rainfall forecast triggers use the largest single preceding-hour accumulation, not a flood forecast.")
+        st.info("No threshold crossings have been recorded for this city.")
+    st.caption("Thresholds are saved per city at application level, not per authenticated user. Notifications are optional and go to the deployment administrator address. Rainfall triggers use the largest single preceding-hour accumulation, not a flood forecast.")
 
 else:
     st.subheader("Methodology & data notes")
