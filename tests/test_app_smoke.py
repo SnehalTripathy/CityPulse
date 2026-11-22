@@ -95,3 +95,25 @@ def test_smart_alert_thresholds_save_and_restore_per_city_offline(monkeypatch, t
     app.run(timeout=90)
     assert not app.exception, [item.message for item in app.exception]
     assert app.slider[0].value == 45.0
+
+
+def test_city_comparison_interaction_degrades_gracefully_offline(monkeypatch):
+    """Exercise comparison selection and its run action with provider outages."""
+    monkeypatch.setattr(requests.sessions.Session, "request", _block_network_requests)
+
+    app = AppTest.from_file(str(APP_PATH), default_timeout=45).run(timeout=90)
+    app.radio[0].set_value("City Comparison")
+    app.run(timeout=90)
+    assert not app.exception, [item.message for item in app.exception]
+
+    city_picker = next(widget for widget in app.multiselect if widget.label == "Choose 2–3 cities")
+    city_picker.set_value(["Bengaluru", "Mumbai"])
+    run_button = next(button for button in app.button if button.label == "Run city comparison")
+    run_button.click()
+    app.run(timeout=90)
+
+    assert not app.exception, [item.message for item in app.exception]
+    assert "city_comparison_result" in app.session_state
+    assert "city_comparison_errors" in app.session_state
+    assert len(app.session_state["city_comparison_result"]) == 1
+    assert len(app.session_state["city_comparison_errors"]) == 1
