@@ -49,7 +49,7 @@ def load_history() -> pd.DataFrame:
     try:
         response = requests.get(archive_url, timeout=(4, 25))
         if response.status_code == 200 and response.content:
-            remote = pd.read_csv(io.BytesIO(response.content), compression="gzip")
+            remote = pd.read_csv(io.BytesIO(response.content))
             if not remote.empty:
                 if "datetime_utc" in remote.columns:
                     remote["datetime_utc"] = pd.to_datetime(remote["datetime_utc"], errors="coerce", utc=True)
@@ -69,7 +69,7 @@ def load_daily_history() -> pd.DataFrame:
     try:
         response = requests.get(archive_url, timeout=(4, 25))
         if response.status_code == 200 and response.content:
-            remote = pd.read_csv(io.BytesIO(response.content))
+            remote = pd.read_csv(io.BytesIO(response.content), compression="gzip")
             if "date" in remote.columns:
                 remote["date"] = pd.to_datetime(remote["date"], errors="coerce", utc=True)
             for column in ["median_value", "reading_count", "latitude", "longitude"]:
