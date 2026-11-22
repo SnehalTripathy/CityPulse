@@ -28,6 +28,52 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * radius * math.asin(min(1.0, math.sqrt(a)))
 
 
+
+
+def _d8_flow_accumulation(
+    elevation: np.ndarray,
+    valid: np.ndarray,
+    cell_x_m: float,
+    cell_y_m: float,
+) -> np.ndarray:
+    """Return a simple D8 upslope-cell count, routing to the steepest lower neighbour.
+
+    Flat cells and closed depressions remain sinks; no depression filling or
+    stream burning is performed. Treat the output as relative terrain context.
+    """
+    height, width = elevation.shape
+    filled = np.where(valid, elevation, np.nanmedian(elevation[valid]))
+    padded = np.pad(filled, 1, mode="edge")
+    valid_padded = np.pad(valid, 1, mode="constant", constant_values=False)
+    rows, cols = np.indices((height, width))
+    best_slope = np.zeros((height, width), dtype=float)
+    downstream = np.full((height, width), -1, dtype=np.int64)
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            if dy == 0 and dx == 0:
+                continue
+            neighbour = padded[1 + dy:1 + dy + height, 1 + dx:1 + dx + width]
+            neighbour_valid = valid_padded[1 + dy:1 + dy + height, 1 + dx:1 + dx + width]
+            distance = math.hypot(dx * cell_x_m, dy * cell_y_m)
+            drop_slope = (filled - neighbour) / max(distance, 1.0)
+            choose = valid & neighbour_valid & (drop_slope > best_slope) & (drop_slope > 0)
+            best_slope[choose] = drop_slope[choose]
+            downstream[choose] = (rows[choose] + dy) * width + (cols[choose] + dx)
+
+    accumulation = np.zeros((height, width), dtype=float)
+    flat_accumulation = accumulation.ravel()
+    valid_indices = np.flatnonzero(valid.ravel())
+    flat_accumulation[valid_indices] = 1.0
+    order = valid_indices[np.argsort(filled.ravel()[valid_indices])[::-1]]
+    flat_downstream = downstream.ravel()
+    for source_index in order:
+        target_index = flat_downstream[source_index]
+        if target_index >= 0:
+            flat_accumulation[target_index] += flat_accumulation[source_index]
+    accumulation[~valid] = np.nan
+    return accumulation
+
+
 def analyze_dem_grid(
     elevation_m: np.ndarray,
     bbox: tuple[float, float, float, float],
@@ -36,15 +82,16 @@ def analyze_dem_grid(
     minimum_cells: int = 100,
     maximum_points: int = 1200,
 ) -> tuple[pd.DataFrame, dict]:
-    """Derive slope and local topographic-position indicators from a DEM grid.
+    """Derive slope, local terrain position and simple D8 flow accumulation.
 
-    Low-lying/gentle cells are a relative terrain screening proxy only. This
-    function does not estimate flood probability, flow accumulation or drainage
-    capacity and must not be labelled as a flood forecast.
+    These are relative terrain screening indicators only. D8 routing does not
+    fill depressions or model infiltration, channel capacity, water levels or
+    runoff. None of these outputs is a flood probability or flood forecast.
     """
     empty_columns = [
         "latitude", "longitude", "elevation_m", "slope_degrees",
-        "topographic_position_m", "terrain_class",
+        "topographic_position_m", "flow_accumulation_cells",
+        "flow_accumulation_area_km2", "terrain_class",
     ]
     elevation = np.asarray(elevation_m, dtype=float)
     if elevation.ndim != 2 or min(elevation.shape, default=0) < 3:
@@ -88,6 +135,13 @@ def analyze_dem_grid(
     classes[low_gentle] = "Relatively low-lying & gentle"
     classes[~valid] = "No DEM data"
 
+    flow_accumulation = _d8_flow_accumulation(
+        filled, valid, cell_x_m, cell_y_m
+    )
+    cell_area_km2 = cell_x_m * cell_y_m / 1_000_000.0
+    flow_area = flow_accumulation * cell_area_km2
+    flow_threshold = max(5.0, float(np.nanquantile(flow_accumulation[valid], 0.95)))
+
     stride = max(1, int(math.ceil(math.sqrt((height * width) / max(1, maximum_points)))))
     rows, cols = np.mgrid[0:height:stride, 0:width:stride]
     sample_valid = valid[rows, cols]
@@ -97,6 +151,8 @@ def analyze_dem_grid(
         "elevation_m": elevation[rows[sample_valid], cols[sample_valid]],
         "slope_degrees": slope[rows[sample_valid], cols[sample_valid]],
         "topographic_position_m": tpi[rows[sample_valid], cols[sample_valid]],
+        "flow_accumulation_cells": flow_accumulation[rows[sample_valid], cols[sample_valid]],
+        "flow_accumulation_area_km2": flow_area[rows[sample_valid], cols[sample_valid]],
         "terrain_class": classes[rows[sample_valid], cols[sample_valid]],
     })
     summary = {
@@ -111,8 +167,12 @@ def analyze_dem_grid(
         "slope_median_degrees": round(float(np.nanmedian(slope[valid])), 2),
         "relative_low_terrain_threshold_m": round(low_threshold, 2),
         "relative_low_gentle_cells": int(low_gentle.sum()),
+        "flow_accumulation_p95_cells": round(float(np.nanquantile(flow_accumulation[valid], 0.95)), 1),
+        "cells_with_at_least_five_upslope_cells": int((valid & (flow_accumulation >= 5)).sum()),
+        "maximum_d8_flow_accumulation_cells": int(np.nanmax(flow_accumulation[valid])),
+        "flow_method": "D8 steepest-lower-neighbour routing; unfilled sinks and flats are retained",
         "city_centre_reference": [float(city_latitude), float(city_longitude)],
-        "method": "Copernicus DEM DSM; 1 km neighbourhood topographic position and slope",
+        "method": "Copernicus DEM DSM; 1 km neighbourhood topographic position, slope and D8 relative accumulation",
     }
     return sample[empty_columns], summary
 
