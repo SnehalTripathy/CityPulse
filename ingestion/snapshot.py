@@ -212,7 +212,7 @@ def append_snapshot(snapshot: pd.DataFrame, path: str | Path) -> int:
     if "location_id" not in combined.columns:
         combined["location_id"] = None
 
-    update_daily_observation_archive(combined, destination.parent.parent / "processed" / "daily_city_observations.csv")
+    update_daily_observation_archive(combined, destination.parent.parent / "processed" / "daily_city_observations.csv.gz")
     combined = combined.drop_duplicates(
         subset=["source", "city", "location_id", "station", "sensor_id", "parameter", "datetime_utc"],
         keep="last",
