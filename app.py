@@ -645,9 +645,13 @@ elif page == "Zone Intelligence":
     elif green_spaces.empty:
         st.info("No nearby mapped green spaces were returned. This may reflect OpenStreetMap coverage, not an absence of green space.")
     else:
-        st.metric("Mapped green/vegetated features within 5 km", f"{len(green_spaces):,}")
-        st.dataframe(green_spaces[["name", "category", "latitude", "longitude"]].sort_values(["category", "name"]), use_container_width=True, hide_index=True)
-        st.caption("OpenStreetMap is community-mapped. Features are listed by mapped centre point; this is not a complete tree-cover inventory or walking-route accessibility estimate.")
+        park_cols = st.columns(3)
+        park_cols[0].metric("Mapped green features (5 km)", f"{len(green_spaces):,}")
+        park_cols[1].metric("Within 1 km (straight-line)", f"{int((green_spaces["distance_km"] <= 1).sum()):,}")
+        nearest_green = float(green_spaces["distance_km"].min()) if "distance_km" in green_spaces and not green_spaces.empty else None
+        park_cols[2].metric("Nearest mapped green space", f"{nearest_green:.2f} km" if nearest_green is not None else "Unavailable")
+        st.dataframe(green_spaces[["name", "category", "distance_km", "latitude", "longitude"]].sort_values(["distance_km", "name"]).style.format({"distance_km":"{:.2f}"}), use_container_width=True, hide_index=True)
+        st.caption("OpenStreetMap is community-mapped. Distances are straight-line to mapped feature centres, not walking routes; listings are not a complete inventory of parks or tree cover.")
 
     st.markdown("### Satellite land-surface temperature")
     st.caption("NASA MODIS Terra daytime land-surface temperature imagery (about 1 km, daily). This is surface temperature, not near-surface air temperature; cloud gaps and the overpass snapshot mean it is context for UHI investigation, not a standalone urban-heat-island score.")
