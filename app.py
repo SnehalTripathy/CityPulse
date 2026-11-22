@@ -189,7 +189,7 @@ with hero_action:
 st.markdown('<p class="subtle">See the city in colour — environmental signals, emerging patterns and experimental urban intelligence in one workspace.</p>', unsafe_allow_html=True)
 st.markdown('<div style="height:1px;background:linear-gradient(90deg,#39D5F6,#A78BFA,#FB7185,#F59E0B,#A3E635);opacity:.7;margin:1rem 0 1.35rem;border-radius:4px"></div>', unsafe_allow_html=True)
 
-elif page == "City Comparison":
+if page == "City Comparison":
     st.subheader("City comparison")
     st.caption("Compare up to three cities using the same live provider sources. Missing measurements remain blank; values are not imputed.")
     comparison_cities = st.multiselect(
@@ -335,7 +335,7 @@ elif page == "Air Quality Intelligence":
         elif newest_age is not None:
             st.caption("Freshness labels use provider observation timestamps. They do not measure instrument calibration or guarantee representative citywide coverage.")
 
-if page == "Command Center":
+elif page == "Command Center":
     st.subheader("City overview")
     if weather_error:
         st.error(f"Weather feed unavailable: {weather_error}")
