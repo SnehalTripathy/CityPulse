@@ -53,7 +53,11 @@ def latest_pollutant_summary(
     max_age_hours: int = 48,
 ) -> dict:
     """Return a pollutant median from one latest fresh report per fixed station."""
-    empty = {"value": None, "station_count": 0, "latest_utc": None, "age_hours": None}
+    empty = {
+        "value": None, "station_count": 0, "latest_utc": None,
+        "age_hours": None, "median_station_age_hours": None,
+        "oldest_station_age_hours": None,
+    }
     required = {"parameter", "unit", "value", "datetime_utc"}
     if air.empty or not required.issubset(air.columns):
         return empty
@@ -96,11 +100,14 @@ def latest_pollutant_summary(
 
     frame = frame.sort_values("datetime_utc").drop_duplicates(subset=[station_key], keep="last")
     latest = frame["datetime_utc"].max()
+    station_ages = (now - frame["datetime_utc"]).dt.total_seconds() / 3600.0
     return {
         "value": float(frame["value_ug_m3"].median()),
         "station_count": int(frame[station_key].nunique()),
         "latest_utc": latest,
         "age_hours": max(0.0, (now - latest).total_seconds() / 3600.0),
+        "median_station_age_hours": round(float(station_ages.median()), 1),
+        "oldest_station_age_hours": round(float(station_ages.max()), 1),
     }
 
 
@@ -144,9 +151,13 @@ def build_city_comparison_record(
         "PM2.5 (µg/m³)": pm25["value"],
         "PM2.5 stations": pm25["station_count"],
         "PM2.5 latest UTC": pm25["latest_utc"],
+        "PM2.5 oldest station age (h)": pm25["oldest_station_age_hours"],
+        "PM2.5 median station age (h)": pm25["median_station_age_hours"],
         "PM10 (µg/m³)": pm10["value"],
         "PM10 stations": pm10["station_count"],
         "PM10 latest UTC": pm10["latest_utc"],
+        "PM10 oldest station age (h)": pm10["oldest_station_age_hours"],
+        "PM10 median station age (h)": pm10["median_station_age_hours"],
         "Latest air observation (UTC)": summary["latest_utc"].max() if not summary.empty else None,
         "Air reading age (h)": float(summary["age_hours"].min()) if not summary.empty else None,
         "CityPulse Index": stress.get("index"),
