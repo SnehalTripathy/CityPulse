@@ -1232,21 +1232,38 @@ elif page == "Zone Intelligence":
             with st.spinner("Searching Copernicus DEM tiles and deriving terrain indicators…"):
                 terrain_frame, terrain_info = load_terrain_screen(city["latitude"], city["longitude"])
             if terrain_info.get("status") == "ready" and not terrain_frame.empty:
-                terrain_cols = st.columns(4)
+                terrain_cols = st.columns(5)
                 terrain_cols[0].metric("Elevation median", f"{terrain_info['elevation_median_m']:.0f} m")
                 terrain_cols[1].metric("Median slope", f"{terrain_info['slope_median_degrees']:.1f}°")
                 terrain_cols[2].metric("Relative low/gentle cells", f"{terrain_info['relative_low_gentle_cells']:,}")
-                terrain_cols[3].metric("DEM tiles used", f"{terrain_info['tiles_used']:,}")
+                terrain_cols[3].metric("High-contributing cells", f"{terrain_info['cells_with_at_least_five_upslope_cells']:,}")
+                terrain_cols[4].metric("DEM tiles used", f"{terrain_info['tiles_used']:,}")
+                terrain_layers = {
+                    "Topographic position": ("topographic_position_m", "Local terrain position (m)", 0),
+                    "Slope": ("slope_degrees", "Slope (degrees)", None),
+                    "D8 flow accumulation": ("flow_accumulation_area_km2", "Upslope contributing grid area (km²)", None),
+                }
+                selected_terrain_layer = st.selectbox(
+                    "Terrain map layer", list(terrain_layers), key="zone_terrain_layer"
+                )
+                terrain_column, terrain_label, terrain_midpoint = terrain_layers[selected_terrain_layer]
                 terrain_fig = px.scatter_mapbox(
                     terrain_frame,
-                    lat="latitude", lon="longitude", color="topographic_position_m",
-                    hover_data=["elevation_m", "slope_degrees", "terrain_class"],
-                    color_continuous_scale="RdYlBu", color_continuous_midpoint=0,
+                    lat="latitude", lon="longitude", color=terrain_column,
+                    hover_data=[
+                        "elevation_m", "slope_degrees", "topographic_position_m",
+                        "flow_accumulation_cells", "flow_accumulation_area_km2", "terrain_class",
+                    ],
+                    color_continuous_scale="RdYlBu" if terrain_midpoint == 0 else "Turbo",
+                    color_continuous_midpoint=terrain_midpoint,
                     zoom=8, height=520,
                     labels={
+                        terrain_column:terrain_label,
                         "topographic_position_m":"Local terrain position (m)",
                         "elevation_m":"Surface elevation (m)",
                         "slope_degrees":"Slope (degrees)",
+                        "flow_accumulation_cells":"Upslope cells (D8)",
+                        "flow_accumulation_area_km2":"Upslope contributing grid area (km²)",
                     },
                 )
                 terrain_fig.update_traces(marker={"size":6, "opacity":0.78})
@@ -1268,8 +1285,10 @@ elif page == "Zone Intelligence":
                     f"Source: Copernicus DEM GLO-30 (nominal 30 m DSM); analysis grid is approximately "
                     f"{terrain_info['resolution_x_m']:.0f} × {terrain_info['resolution_y_m']:.0f} m. "
                     "Relative terrain position is elevation minus a local ~1 km neighbourhood mean. "
-                    "The low-lying/gentle category is the lowest 20% of local terrain-position values with slope ≤5°. "
-                    "DSM elevations include buildings and vegetation; this screening does not identify flood extent or probability."
+                    f"The low-lying/gentle category is the lowest 20% of local terrain-position values with slope ≤5°. "
+                    f"D8 routing highlights relative upslope grid-cell accumulation (maximum {terrain_info['maximum_d8_flow_accumulation_cells']:,} cells); "
+                    "depressions/flats remain sinks and are not filled. DSM elevations include buildings and vegetation. "
+                    "This is not flood extent/probability, water depth, drainage capacity or a calibrated hydrological model."
                 )
             else:
                 st.info(f"Terrain screen unavailable: {terrain_info.get('status', 'no usable DEM')}.")
