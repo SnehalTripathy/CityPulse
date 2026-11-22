@@ -55,3 +55,14 @@ def test_hotspot_requires_sufficient_recent_stations_and_neighbour_cluster():
     )
     assert status == "insufficient_station_density"
     assert clusters.empty
+
+
+def test_uniform_station_values_do_not_create_a_relative_cluster():
+    air = _air_frame()
+    air["value"] = 25
+    status, clusters, sample_count = detect_observed_hotspot_clusters(
+        air, "pm25", "µg/m³", now=pd.Timestamp("2026-11-22T18:00:00Z")
+    )
+    assert sample_count == 6
+    assert status == "no_cluster"
+    assert clusters.empty
