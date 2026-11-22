@@ -9,12 +9,12 @@ CityPulse is an interactive urban intelligence platform that brings together wea
 ## What you can explore
 
 - **City Command Center** — an at-a-glance view of current weather conditions, hourly outlook, nearby air-quality readings and the experimental CityPulse Index when sufficient data is available.
-- **City Comparison** — compare up to three cities using live weather, available PM2.5/PM10 observations, rainfall and the experimental CityPulse Index; inspect daily historical trends when the archive has enough comparable data.
+- **City Comparison** — compare up to three cities using live weather and fresh fixed-station PM2.5/PM10 medians normalized to µg/m³, with pollutant-specific station counts, timestamps and station-age ranges. Compare daily historical trends across shared UTC dates when the retained archive contains enough real observations.
 - **Air Quality Intelligence** — inspect pollutant-level summaries, station counts, sensor readings and observation freshness.
 - **Environmental Analytics** — explore weather forecasts and available historical weather and air-quality observations.
 - **Predictive Intelligence** — view experimental machine-learning estimates when enough historical observations are available and the model performs better than a simple baseline.
 - **Anomaly Detection** — identify unusual weather patterns relative to the platform's collected historical baseline.
-- **Zone Intelligence** — inspect returned monitoring stations, their spatial distribution and freshness; screen for relative clusters only when enough recent comparable stations exist; explore mapped green spaces, NASA daytime land-surface temperature imagery and ESA land-cover context.
+- **Zone Intelligence** — inspect fixed/mobile station coverage, freshness and station provenance; view the returned-sample coverage grid; screen for recent relative pollution clusters; optionally show an inverse-distance-weighted pollution surface only inside the fixed-station convex hull and only when leave-one-station-out MAE beats a median baseline; analyze multi-scene Landsat surface-temperature contrasts; explore ESA land cover, mapped green spaces and bounded OpenStreetMap walking-network estimates.
 - **Scenario Simulator** — adjust environmental assumptions and explore how they affect the project's experimental index.
 - **Methodology** — understand the data sources, index approach and current limitations.
 
@@ -32,7 +32,8 @@ City locations use approximate city-centre coordinates. Weather and air-quality 
 
 - **Weather:** [Open-Meteo](https://open-meteo.com/) — modelled current conditions and weather forecasts.
 - **Air quality:** [OpenAQ](https://openaq.org/) — observations reported by nearby monitoring stations.
-- **Satellite land-surface temperature:** [NASA Global Imagery Browse Services](https://gibs.earthdata.nasa.gov/) — MODIS Terra daytime land-surface temperature imagery (about 1 km).
+- **Satellite land-surface temperature:** [USGS Landsat Collection 2 Level-2](https://www.usgs.gov/landsat-missions/landsat-collection-2) accessed through the [Microsoft Planetary Computer STAC catalog](https://planetarycomputer.microsoft.com/catalog/dataset/landsat-c2-l2) — thermal surface-temperature, reflectance and quality bands for scene-based analysis.
+- **Satellite context imagery:** [NASA Global Imagery Browse Services](https://gibs.earthdata.nasa.gov/) — MODIS Terra daytime land-surface temperature imagery (about 1 km).
 - **Land cover:** [ESA WorldCover](https://esa-worldcover.org/en/data-access) — 2021 land-cover classification at 10 m resolution.
 - **Parks and green spaces:** [OpenStreetMap](https://www.openstreetmap.org/) — community-mapped parks, gardens, forests and grassland features (© OpenStreetMap contributors; [attribution](https://www.openstreetmap.org/copyright)).
 
@@ -50,15 +51,22 @@ The current heuristic weights these components at 50%, 35% and 15%, respectively
 
 **The CityPulse Index is not an official AQI, regulatory measurement, health assessment or public warning.** It is a prototype indicator intended for exploration. For official air-quality information, consult the relevant national or local environmental authority.
 
+## Comparison and spatial methodology
+
+- City comparisons use the latest eligible reading from each fixed OpenAQ station within 48 hours, exclude mobile sensors, normalize supported mass-concentration units, and report how recent the oldest/median station reports are. The CityPulse Index remains a separate experimental composite.
+- Zone coverage describes the stations OpenAQ actually returned (maximum 12 locations within a 25 km query radius). Empty 5 km cells mean no fixed station was returned in that sample; they do not prove that no monitor exists there.
+- The relative-cluster screen requires at least six recent fixed stations for one pollutant and unit, then groups upper-quartile readings within 5 km. It is not an official air-quality alert.
+- Spatial interpolation uses inverse-distance weighting within the Delaunay convex hull of eligible fixed stations, with a 3 km nearest-station limit and leave-one-station-out comparison against a median baseline. It is shown only when IDW performs better on that diagnostic.
+
 ## Important notes
 
 - Weather values are modelled grid-cell data, not street-level measurements.
 - Air-quality readings come from monitoring stations; coverage and reporting times are not uniform.
 - Historical records build over time as scheduled data collection runs. Newly added cities may not yet have sufficient history for trend analysis or machine-learning features.
-- Historical city trends use common UTC calendar-day windows, report coverage and remain unavailable until enough archived observations exist; missing days are not filled.
-- Relative pollution clusters use only recent, comparable station observations and are not official thresholds, health warnings or interpolated neighbourhood measurements.
-- NASA surface-temperature imagery is a satellite context layer, not near-surface air temperature or a computed urban-heat-island score. ESA WorldCover is a dated 2021 layer.
-- OpenStreetMap green-space coverage depends on community mapping. Park proximity is straight-line distance to mapped feature centres, not walking-route accessibility.
+- Historical city trends use a compressed, retained 365-day station/day archive. Weather and sensor reports are summarized by UTC day; particulate values are converted to µg/m³ where supported. A chart requires at least two cities with three observed days each and at least three shared dates. Missing dates remain visible gaps, not filled values. The scheduled collector must accumulate real observations before this feature becomes populated.
+- Relative pollution clusters use only recent, comparable fixed-station observations; they are sample-relative signals, not regulatory thresholds or health warnings. IDW surfaces are estimates—not measurements—and are withheld unless at least six recent fixed stations support a convex-hull surface and spatial cross-validation beats a median baseline. Surfaces are limited to 3 km from a station.
+- Landsat surface-temperature analysis compares an approximate low-NDVI urban-core proxy with a vegetated outer reference across up to three usable scenes. Cloud, shadow, snow, fill, water, saturation and terrain-occlusion pixels are masked, and ST-QA uncertainty is reported where available. The contrast is an exploratory surface-temperature proxy, not near-surface air temperature, an official UHI metric or a long-term seasonal climatology. ESA WorldCover is a dated 2021 layer.
+- OpenStreetMap green-space coverage depends on community mapping. The optional walking estimate follows a bounded sample of mapped walkable ways to the nearest network node of each mapped feature centre; it is not a verified entrance route or complete citywide pedestrian accessibility analysis. Distances, walk times and routes are approximate.
 - Predictive and anomaly-detection features are experimental and are shown only when their data requirements are met.
 - CityPulse is an exploratory information platform, not an emergency-response or health-advice service.
 
