@@ -159,7 +159,7 @@ if not weather.empty:
     weather = add_weather_stress(weather)
 
 st.markdown('<div class="pulse">LIVE URBAN INTELLIGENCE &nbsp;·&nbsp; PILOT 01</div>', unsafe_allow_html=True)
-hero_title, hero_action = st.columns([5, 2], vertical_alignment="center")
+hero_title, hero_action = st.columns([5, 2], vertical_alignment="top")
 with hero_title:
     st.title(f"{city_name} Urban Stress Monitor")
     st.markdown('<p class="subtle">See the city in colour — environmental signals, emerging patterns and experimental urban intelligence in one workspace.</p>', unsafe_allow_html=True)
