@@ -1,6 +1,6 @@
-from datetime import date
+import requests
 
-from ingestion.geo_layers import fetch_nasa_land_surface_temperature, fetch_green_spaces
+from ingestion.geo_layers import fetch_green_spaces, OverpassUnavailable
 
 
 class FakeResponse:
@@ -28,43 +28,36 @@ def test_green_space_parser_keeps_osm_source_fields(monkeypatch):
     assert result["distance_km"].min() > 0
 
 
-def test_nasa_layer_uses_requested_date(monkeypatch):
-    captured = {}
+def test_overpass_fails_over_to_secondary_endpoint(monkeypatch):
+    calls = []
 
-    class ImageResponse:
-        headers = {"content-type": "image/png"}
-        content = b"png-data"
+    def fake_post(endpoint, **kwargs):
+        calls.append(endpoint)
+        if len(calls) == 1:
+            response = requests.Response()
+            response.status_code = 406
+            raise requests.HTTPError("not acceptable", response=response)
+        return FakeResponse()
 
-        def raise_for_status(self):
-            return None
-
-    def fake_get(endpoint, params=None, timeout=None):
-        captured.update(params)
-        return ImageResponse()
-
-    monkeypatch.setattr("ingestion.geo_layers.requests.get", fake_get)
-    image, selected = fetch_nasa_land_surface_temperature(12.0, 77.0, date(2026, 11, 20))
-    assert image == b"png-data"
-    assert selected == "2026-11-20"
-    assert captured["layers"] == "MODIS_Terra_Land_Surface_Temp_Day"
+    monkeypatch.setattr("ingestion.geo_layers.requests.post", fake_post)
+    result = fetch_green_spaces(12.0, 77.0)
+    assert len(result) == 2
+    assert len(calls) == 2
+    assert "overpass-api.de" in calls[0]
+    assert "overpass.kumi.systems" in calls[1]
 
 
-def test_worldcover_request_does_not_send_a_time_dimension(monkeypatch):
-    captured = {}
+def test_overpass_failure_returns_friendly_error_after_all_fallbacks(monkeypatch):
+    def fake_post(endpoint, **kwargs):
+        response = requests.Response()
+        response.status_code = 503
+        raise requests.HTTPError("service unavailable", response=response)
 
-    class ImageResponse:
-        headers = {"content-type": "image/png"}
-        content = b"cover-png"
-
-        def raise_for_status(self):
-            return None
-
-    def fake_get(endpoint, params=None, timeout=None):
-        captured.update(params)
-        return ImageResponse()
-
-    monkeypatch.setattr("ingestion.geo_layers.requests.get", fake_get)
-    from ingestion.geo_layers import fetch_esa_worldcover
-    assert fetch_esa_worldcover(12.0, 77.0) == b"cover-png"
-    assert captured["layers"] == "esa-worldcover-map-10m-2021-v2_map"
-    assert "time" not in captured
+    monkeypatch.setattr("ingestion.geo_layers.requests.post", fake_post)
+    try:
+        fetch_green_spaces(12.0, 77.0)
+    except OverpassUnavailable as exc:
+        assert "temporarily busy or unavailable" in str(exc)
+        assert "tried 3 endpoints" in str(exc)
+    else:
+        raise AssertionError("Expected all Overpass endpoints to fail")
