@@ -5,14 +5,14 @@ import pandas as pd
 
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 
-def fetch_forecast(latitude: float, longitude: float) -> pd.DataFrame:
+def fetch_forecast(latitude: float, longitude: float, timezone_name: str = "auto") -> pd.DataFrame:
     params = {
         "latitude": latitude,
         "longitude": longitude,
         "current": "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,wind_speed_10m",
         "hourly": "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m",
         "forecast_days": 7,
-        "timezone": "Asia/Kolkata",
+        "timezone": timezone_name,
     }
     response = requests.get(WEATHER_URL, params=params, timeout=25)
     response.raise_for_status()
