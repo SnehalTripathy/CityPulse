@@ -8,7 +8,7 @@ MAX_READING_AGE_HOURS = 48
 
 def _normalise_parameter(value: object) -> str | None:
     token = str(value).lower().replace("_", "").replace(" ", "")
-    token = token.replace("₂", "2").replace(".", "")
+    token = token.replace("₂", "2").replace("₅", "5").replace(".", "")
     if token in {"pm25", "pm2.5", "pm25mass"}:
         return "pm25"
     if token in {"pm10", "pm10mass"}:
@@ -16,9 +16,10 @@ def _normalise_parameter(value: object) -> str | None:
     return None
 
 
-def _is_micrograms_per_cubic_metre(unit: object) -> bool:
+def _unit_to_ug_m3(unit: object) -> float | None:
     token = str(unit).lower().replace(" ", "").replace("μ", "µ")
-    return token in {"µg/m³", "ug/m3", "µg/m3", "ug/m³", "µg/m^3", "ug/m^3"}
+    token = token.replace("³", "3").replace("^", "")
+    return {"µg/m3": 1.0, "ug/m3": 1.0, "mg/m3": 1000.0}.get(token)
 
 
 def _latest_citywide_pm(air: pd.DataFrame, now: pd.Timestamp) -> dict[str, float]:
@@ -27,23 +28,38 @@ def _latest_citywide_pm(air: pd.DataFrame, now: pd.Timestamp) -> dict[str, float
 
     frame = air.copy()
     frame["pollutant"] = frame["parameter"].map(_normalise_parameter)
-    frame = frame[frame["pollutant"].notna()]
-    frame = frame[frame["unit"].map(_is_micrograms_per_cubic_metre)]
-    frame["value"] = pd.to_numeric(frame["value"], errors="coerce")
+    frame = frame[frame["pollutant"].notna()].copy()
+    frame["unit_factor"] = frame["unit"].map(_unit_to_ug_m3)
+    frame = frame[frame["unit_factor"].notna()].copy()
+    frame["value"] = pd.to_numeric(frame["value"], errors="coerce") * frame["unit_factor"]
     frame["datetime_utc"] = pd.to_datetime(frame["datetime_utc"], errors="coerce", utc=True)
     frame = frame.dropna(subset=["value", "datetime_utc"])
     if frame.empty:
         return {}
 
     cutoff = now - pd.Timedelta(hours=MAX_READING_AGE_HOURS)
-    frame = frame[frame["datetime_utc"] >= cutoff]
+    frame = frame.loc[
+        (frame["datetime_utc"] >= cutoff)
+        & (frame["datetime_utc"] <= now + pd.Timedelta(minutes=15))
+    ].copy()
+    if "is_mobile" in frame.columns:
+        mobile = frame["is_mobile"].map(
+            lambda value: str(value).strip().lower() in {"true", "1", "yes", "y"}
+        )
+        frame = frame.loc[~mobile].copy()
     if frame.empty:
         return {}
 
-    # Use one latest value per station and pollutant, then median across stations.
-    station_key = "location_id" if "location_id" in frame.columns else "station"
+    # Use one latest value per fixed station and pollutant, then median across stations.
+    if "location_id" in frame.columns:
+        fallback = frame["station"] if "station" in frame.columns else frame.index.astype(str)
+        frame["_station_key"] = frame["location_id"].where(frame["location_id"].notna(), fallback)
+    elif "station" in frame.columns:
+        frame["_station_key"] = frame["station"]
+    else:
+        frame["_station_key"] = frame.index.astype(str)
     frame = frame.sort_values("datetime_utc").drop_duplicates(
-        subset=[station_key, "pollutant"], keep="last"
+        subset=["_station_key", "pollutant"], keep="last"
     )
     return frame.groupby("pollutant")["value"].median().to_dict()
 
