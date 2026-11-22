@@ -67,6 +67,21 @@ def load_weather(lat: float, lon: float) -> pd.DataFrame:
 def load_air(lat: float, lon: float, key: str | None) -> pd.DataFrame:
     return fetch_latest_measurements(lat, lon, key)
 
+def get_forward_hours(frame: pd.DataFrame, current: dict, count: int) -> pd.DataFrame:
+    if frame.empty or "time" not in frame.columns:
+        return frame.head(count)
+    timestamps = pd.to_datetime(frame["time"], errors="coerce")
+    current_time = pd.to_datetime(current.get("time"), errors="coerce") if current else pd.NaT
+    if pd.notna(current_time):
+        if timestamps.dt.tz is None and current_time.tzinfo is not None:
+            current_time = current_time.tz_localize(None)
+        elif timestamps.dt.tz is not None and current_time.tzinfo is None:
+            current_time = current_time.tz_localize(timestamps.dt.tz)
+        filtered = frame.loc[timestamps >= current_time.floor("h")]
+        if not filtered.empty:
+            return filtered.head(count)
+    return frame.head(count)
+
 weather = pd.DataFrame()
 air = pd.DataFrame()
 weather_error = None
@@ -137,7 +152,7 @@ if page == "Command Center":
         else:
             st.caption("Experimental composite: 50% heat + 35% particulate signal + 15% rainfall. Based on available recent data within the 25 km search area.")
         st.markdown("### Hourly outlook")
-        hourly = weather.head(24)
+        hourly = get_forward_hours(weather, weather_current, 24)
         fig = px.line(hourly, x="time", y=["temperature_2m", "apparent_temperature"], markers=True,
                       labels={"value":"Temperature (°C)","time":"Forecast time","variable":"Series"},
                       template="plotly_dark", color_discrete_sequence=["#52C8FF","#9B8AFF"])
@@ -164,7 +179,7 @@ elif page == "Environmental Analytics":
             vars_ = [c for c in ["temperature_2m","apparent_temperature","relative_humidity_2m","precipitation","wind_speed_10m"] if c in weather]
             selected = st.multiselect("Forecast metrics", vars_, default=vars_[:3])
             if selected:
-                fig = px.line(weather.head(72), x="time", y=selected, template="plotly_dark")
+                fig = px.line(get_forward_hours(weather, weather_current, 72), x="time", y=selected, template="plotly_dark")
                 fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238")
                 st.plotly_chart(fig, use_container_width=True)
     with tabs[1]:
@@ -198,7 +213,7 @@ elif page == "Predictive Intelligence":
     st.markdown("### Provider forecast")
     if not weather.empty:
         st.caption("Open-Meteo forecast, shown separately from CityPulse's trained model.")
-        st.dataframe(weather.head(48), use_container_width=True, hide_index=True)
+        st.dataframe(get_forward_hours(weather, weather_current, 48), use_container_width=True, hide_index=True)
     st.markdown("### CityPulse machine-learning estimate")
     forecast_result = train_next_observation_model(history)
     if forecast_result["status"] != "ready":
