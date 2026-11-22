@@ -647,7 +647,7 @@ elif page == "Zone Intelligence":
     else:
         park_cols = st.columns(3)
         park_cols[0].metric("Mapped green features (5 km)", f"{len(green_spaces):,}")
-        park_cols[1].metric("Within 1 km (straight-line)", f"{int((green_spaces["distance_km"] <= 1).sum()):,}")
+        park_cols[1].metric("Within 1 km (straight-line)", f"{int((green_spaces['distance_km'] <= 1).sum()):,}")
         nearest_green = float(green_spaces["distance_km"].min()) if "distance_km" in green_spaces and not green_spaces.empty else None
         park_cols[2].metric("Nearest mapped green space", f"{nearest_green:.2f} km" if nearest_green is not None else "Unavailable")
         st.dataframe(green_spaces[["name", "category", "distance_km", "latitude", "longitude"]].sort_values(["distance_km", "name"]).style.format({"distance_km":"{:.2f}"}), use_container_width=True, hide_index=True)
