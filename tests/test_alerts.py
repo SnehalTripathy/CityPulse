@@ -73,3 +73,15 @@ def test_subthreshold_values_do_not_trigger_alerts():
         now=pd.Timestamp("2026-11-22T10:00:00Z"),
     )
     assert result["alerts"].empty
+
+ 
+def test_alert_assessment_rejects_invalid_thresholds():
+    import pytest
+
+    for invalid in (float("nan"), float("inf"), -1, "not-a-number"):
+        with pytest.raises(ValueError):
+            build_alert_assessment(
+                {}, pd.DataFrame(), pd.DataFrame(),
+                {"heat_c": invalid},
+                now=pd.Timestamp("2026-11-22T18:00:00Z"),
+            )
