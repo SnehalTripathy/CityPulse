@@ -34,7 +34,7 @@ City locations use approximate city-centre coordinates. Weather and air-quality 
 - **Air quality:** [OpenAQ](https://openaq.org/) — observations reported by nearby monitoring stations.
 - **Satellite land-surface temperature:** [NASA Global Imagery Browse Services](https://gibs.earthdata.nasa.gov/) — MODIS Terra daytime land-surface temperature imagery (about 1 km).
 - **Land cover:** [ESA WorldCover](https://esa-worldcover.org/en/data-access) — 2021 land-cover classification at 10 m resolution.
-- **Parks and green spaces:** [OpenStreetMap](https://www.openstreetmap.org/) — community-mapped parks, gardens, forests and grassland features.
+- **Parks and green spaces:** [OpenStreetMap](https://www.openstreetmap.org/) — community-mapped parks, gardens, forests and grassland features (© OpenStreetMap contributors; [attribution](https://www.openstreetmap.org/copyright)).
 
 The platform presents provider weather forecasts separately from its own experimental analytics. Air-quality station coverage, pollutants and observation recency vary between cities. A city appearing in the selector does not guarantee that nearby live air-quality readings are available.
 
