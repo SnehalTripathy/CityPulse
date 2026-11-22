@@ -12,6 +12,10 @@ import pandas as pd
 import requests
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OVERPASS_HEADERS = {
+    "User-Agent": "CityPulse/1.0 (+https://github.com/SnehalTripathy/CityPulse)",
+    "Accept": "application/json",
+}
 NASA_GIBS_WMS = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi"
 WORLD_COVER_WMS = "https://mapproxy.terrascope.be/mapproxy/service"
 REQUEST_TIMEOUT = (5, 30)
@@ -41,7 +45,12 @@ def fetch_green_spaces(
 );
 out center tags {int(limit)};
 """
-    response = requests.post(OVERPASS_URL, data={"data": query}, timeout=REQUEST_TIMEOUT)
+    response = requests.post(
+        OVERPASS_URL,
+        data={"data": query},
+        headers=OVERPASS_HEADERS,
+        timeout=REQUEST_TIMEOUT,
+    )
     response.raise_for_status()
     payload = response.json()
     rows = []
@@ -312,6 +321,7 @@ out skel qt;
     response = requests.post(
         OVERPASS_URL,
         data={"data": query},
+        headers=OVERPASS_HEADERS,
         timeout=(5, 45),
     )
     response.raise_for_status()
