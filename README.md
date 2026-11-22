@@ -17,7 +17,7 @@ CityPulse is an interactive urban intelligence platform that brings together wea
 - **Zone Intelligence** — inspect fixed/mobile station coverage, freshness and station provenance; view the returned-sample coverage grid; screen for recent relative pollution clusters; optionally show an inverse-distance-weighted pollution surface only inside the fixed-station convex hull and only when leave-one-station-out MAE beats a median baseline; analyze multi-scene Landsat surface-temperature contrasts; explore ESA land cover, mapped green spaces, bounded OpenStreetMap walking-network estimates, Copernicus DEM GLO-30 elevation/slope/topographic-position and D8 flow-accumulation layers, plus mapped rivers, streams, canals, drains and water bodies.
 - **Environmental Health & Exposure** — view WorldPop population estimates in distance rings around a city-centre point, inspect under-5 and age-65+ demographic context, optionally view a 1 km population grid, and estimate distance-weighted population proximity around an elevated heat point or qualifying pollution monitors.
 - **Smart Alerts & Recommendations** — configure prototype thresholds for heat, rainfall, PM2.5 and PM10; distinguish current modelled conditions, hourly forecasts and recent fixed-station readings; inspect trigger evidence and source-grounded next steps.
-- **Data Quality & Confidence** — inspect source freshness, returned-station coverage, future timestamps, missing units/station identities, invalid values and broad plausibility flags; export an audit summary. Smart-alert trigger history can be exported during the current browser session.
+- **Data Quality & Confidence** — inspect source freshness, returned-station coverage, future timestamps, missing units/station identities, invalid values and broad plausibility flags; export an audit summary. Smart-alert history can be exported from the saved SQLite history.
 - **Scenario Simulator** — adjust environmental assumptions and explore how they affect the project's experimental index.
 - **Methodology** — understand the data sources, index approach and current limitations.
 
@@ -69,7 +69,7 @@ The current heuristic weights these components at 50%, 35% and 15%, respectively
 
 The Smart Alerts page stores per-city threshold preferences and deduplicated alert history in SQLite. By default the database is written to `data/processed/citypulse_state.sqlite3`; set `CITYPULSE_STATE_DB` to a path on a persistent mounted volume when deploying. Ephemeral container filesystems can be reset during redeployment, so a persistent volume is required for durable history across deployments. Preferences are application-level per city, not per authenticated user; the current app does not implement user accounts.
 
-Email notifications are opt-in per city and sent only to the deployment administrator address. Configure these Streamlit secrets or environment variables:
+Email notifications are opt-in per city and sent only to the deployment administrator address. Configure these Streamlit secrets or environment variables. Streamlit Secrets may use flat root-level keys:
 
 - `CITYPULSE_SMTP_HOST`
 - `CITYPULSE_SMTP_PORT`
@@ -78,7 +78,9 @@ Email notifications are opt-in per city and sent only to the deployment administ
 - Optional: `CITYPULSE_SMTP_USERNAME`
 - Optional: `CITYPULSE_SMTP_PASSWORD`
 
-Do not commit SMTP credentials or recipient details to the repository. Delivery is attempted only for newly recorded alert events. A failed delivery is recorded in alert history and is not automatically retried. SMTP must permit STARTTLS on the configured port.
+Alternatively, use a `[smtp]` table in Streamlit Secrets with `host`, `port`, `from_address`, `alert_email`, and (optionally) `username` and `password` keys. Do not commit SMTP credentials or recipient details to the repository. Delivery is attempted only when the Smart Alerts page is evaluated and a newly observed trigger is recorded; opening the dashboard is not a background monitoring service. A failed delivery is recorded in alert history and is not automatically retried. SMTP must permit STARTTLS on the configured port. SQLite history survives restarts only when `CITYPULSE_STATE_DB` points to a durable mounted volume. Settings are shared at city level across app visitors because the app does not have individual user accounts.
+
+A separate [WorldPop Live API Smoke Check workflow](https://github.com/SnehalTripathy/CityPulse/actions/workflows/worldpop-live-smoke.yml) checks catchment rings and age-group totals for Bengaluru, London and Nairobi, plus the 1 km raster and distance-weighted exposure endpoints. It is scheduled weekly and can also be run manually from GitHub Actions. This is a service-contract check; it does not replace verifying the live Streamlit page.
 
 ## Important notes
 
