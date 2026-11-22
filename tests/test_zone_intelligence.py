@@ -82,3 +82,17 @@ def test_mobile_sensors_do_not_inflate_fixed_station_coverage_grid():
     assert summary["geocoded_station_count"] == 5
     assert len(inventory) == 6
     assert len(grid) >= 1
+
+
+
+def test_future_dated_station_is_not_counted_as_fresh():
+    air = _air_frame().head(1).copy()
+    air["datetime_utc"] = "2026-11-23T05:00:00Z"
+    summary, inventory, grid = build_zone_coverage(
+        air, 12.0, 77.0, now=pd.Timestamp("2026-11-22T18:00:00Z")
+    )
+    assert summary["fresh_stations"] == 0
+    assert summary["future_timestamp_stations"] == 1
+    assert inventory.iloc[0]["freshness"] == "Future timestamp"
+    assert pd.isna(inventory.iloc[0]["age_hours"])
+    assert grid.empty
