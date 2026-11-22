@@ -15,8 +15,8 @@ TREND_METRICS = {
     "Temperature (°C)": {"source": "open-meteo", "parameters": {"temperature2m"}, "units": {"°c", "c"}},
     "Feels-like temperature (°C)": {"source": "open-meteo", "parameters": {"apparenttemperature"}, "units": {"°c", "c"}},
     "Rainfall (mm)": {"source": "open-meteo", "parameters": {"precipitation"}, "units": {"mm"}},
-    "PM2.5 (µg/m³)": {"source": "openaq", "parameters": {"pm25", "pm25mass"}, "units": {"µg/m3", "ug/m3"}},
-    "PM10 (µg/m³)": {"source": "openaq", "parameters": {"pm10", "pm10mass"}, "units": {"µg/m3", "ug/m3"}},
+    "PM2.5 (µg/m³)": {"source": "openaq", "parameters": {"pm25", "pm25mass"}, "units": {"µg/m3", "ug/m3", "mg/m3"}},
+    "PM10 (µg/m³)": {"source": "openaq", "parameters": {"pm10", "pm10mass"}, "units": {"µg/m3", "ug/m3", "mg/m3"}},
 }
 
 
@@ -54,6 +54,9 @@ def build_city_trend_frame(
         & frame["unit_token"].isin(specification["units"])
     ].copy()
     frame["value"] = pd.to_numeric(frame["value"], errors="coerce")
+    if specification["source"] == "openaq":
+        unit_factor = {"µg/m3": 1.0, "ug/m3": 1.0, "mg/m3": 1000.0}
+        frame["value"] = frame["value"] * frame["unit_token"].map(unit_factor)
     frame["datetime_utc"] = pd.to_datetime(frame["datetime_utc"], errors="coerce", utc=True)
     frame = frame.dropna(subset=["value", "datetime_utc"])
     if frame.empty:
