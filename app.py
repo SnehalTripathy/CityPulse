@@ -417,7 +417,7 @@ elif page == "Air Quality Intelligence":
         if parameters:
             selected_parameter = st.selectbox("Inspect pollutant readings", parameters, key="air_quality_parameter")
             detail = air.loc[air["parameter"].astype(str) == selected_parameter].copy()
-            detail_columns = [column for column in ["station", "locality", "value", "unit", "datetime_local", "datetime_utc", "distance_m"] if column in detail.columns]
+            detail_columns = [column for column in ["station", "location_id", "locality", "value", "unit", "datetime_local", "datetime_utc", "distance_m", "is_mobile", "provider", "owner", "licenses"] if column in detail.columns]
             st.markdown("### Sensor-level readings")
             st.dataframe(detail[detail_columns].sort_values("datetime_utc", ascending=False) if "datetime_utc" in detail.columns else detail[detail_columns], use_container_width=True, hide_index=True)
         if newest_age is not None and newest_age > 48:
@@ -624,9 +624,29 @@ elif page == "Zone Intelligence":
     distance_cols[1].metric("Median station distance", f"{coverage['median_station_distance_km']:.1f} km" if coverage["median_station_distance_km"] is not None else "Unavailable")
     distance_cols[2].metric("Occupied 5 km cells", f"{coverage['occupied_grid_cells']:,}")
 
-    parameters = sorted(geo["parameter"].dropna().astype(str).unique().tolist()) if not geo.empty else []
+    map_age = st.selectbox(
+        "Map observation age",
+        ["Within 48 hours", "Within 6 hours", "All returned observations"],
+        index=0,
+        key="zone_map_age",
+    )
+    map_source = geo.copy()
+    if not map_source.empty and "datetime_utc" in map_source.columns:
+        map_source["datetime_utc"] = pd.to_datetime(map_source["datetime_utc"], errors="coerce", utc=True)
+        current_utc = pd.Timestamp.now(tz="UTC")
+        if map_age == "Within 48 hours":
+            map_source = map_source.loc[
+                (map_source["datetime_utc"] >= current_utc - pd.Timedelta(hours=48))
+                & (map_source["datetime_utc"] <= current_utc + pd.Timedelta(minutes=15))
+            ].copy()
+        elif map_age == "Within 6 hours":
+            map_source = map_source.loc[
+                (map_source["datetime_utc"] >= current_utc - pd.Timedelta(hours=6))
+                & (map_source["datetime_utc"] <= current_utc + pd.Timedelta(minutes=15))
+            ].copy()
+    parameters = sorted(map_source["parameter"].dropna().astype(str).unique().tolist()) if not map_source.empty else []
     selected_parameter = st.selectbox("Map pollutant", parameters, key="zone_map_parameter") if parameters else None
-    parameter_data = geo.loc[geo["parameter"].astype(str) == selected_parameter].copy() if selected_parameter else pd.DataFrame()
+    parameter_data = map_source.loc[map_source["parameter"].astype(str) == selected_parameter].copy() if selected_parameter else pd.DataFrame()
     map_units = sorted(parameter_data["unit"].dropna().astype(str).unique().tolist()) if not parameter_data.empty and "unit" in parameter_data.columns else []
     selected_unit = st.selectbox("Measurement unit", map_units, key="zone_map_unit") if map_units else None
     map_data = parameter_data.loc[parameter_data["unit"].astype(str) == selected_unit].copy() if selected_unit else pd.DataFrame()
@@ -709,10 +729,13 @@ elif page == "Zone Intelligence":
         st.info("Station-level inventory is unavailable because no timestamped station records were returned.")
     else:
         st.dataframe(
-            station_inventory[["station", "distance_km", "latest_utc", "age_hours", "freshness", "is_mobile", "pollutant_count", "reading_count"]].style.format({"distance_km":"{:.2f}", "age_hours":"{:.1f}"}),
+            station_inventory[["station", "location_id", "distance_km", "latest_utc", "age_hours", "freshness", "is_mobile", "pollutant_count", "reading_count"]].style.format({"distance_km":"{:.2f}", "age_hours":"{:.1f}"}),
             use_container_width=True, hide_index=True,
         )
-        st.caption("Fresh ≤6 hours · Recent 6–48 hours · Stale >48 hours. These labels describe the newest provider timestamp per returned station, not instrument calibration.")
+        with st.expander("Station data provenance"):
+            provenance = station_inventory[["station", "location_id", "provider", "owner", "licenses", "timezone"]]
+            st.dataframe(provenance, use_container_width=True, hide_index=True)
+        st.caption("Fresh ≤6 hours · Recent 6–48 hours · Stale >48 hours. These labels describe the newest provider timestamp per returned station, not instrument calibration. The map filter above is independent of this complete inventory.")
     if not occupied_cells.empty:
         st.markdown("### Returned-station distribution")
         st.dataframe(occupied_cells.rename(columns={"grid_x":"5 km grid X (local offset)", "grid_y":"5 km grid Y (local offset)", "station_count":"Stations in occupied cell", "station_names":"Returned stations"}), use_container_width=True, hide_index=True)
