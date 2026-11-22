@@ -87,7 +87,16 @@ def build_alert_assessment(
     modelled grid-cell data; particulate medians come from eligible fixed OpenAQ
     stations no more than 24 hours old.
     """
-    configured = {**DEFAULT_ALERT_THRESHOLDS, **(thresholds or {})}
+    configured = DEFAULT_ALERT_THRESHOLDS.copy()
+    for key, default_value in DEFAULT_ALERT_THRESHOLDS.items():
+        raw_value = (thresholds or {}).get(key, default_value)
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            raise ValueError(f"Invalid alert threshold: {key}") from None
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"Invalid alert threshold: {key}")
+        configured[key] = value
     rows: list[dict] = []
     recommendations: dict[str, str] = {}
     unavailable: list[str] = []
