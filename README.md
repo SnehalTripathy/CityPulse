@@ -9,10 +9,12 @@ CityPulse is an interactive urban intelligence platform that brings together wea
 ## What you can explore
 
 - **City Command Center** — an at-a-glance view of current weather conditions, hourly outlook, nearby air-quality readings and the experimental CityPulse Index when sufficient data is available.
+- **City Comparison** — compare up to three cities using live weather, available PM2.5/PM10 observations, rainfall and the experimental CityPulse Index, with timestamps and coverage caveats.
+- **Air Quality Intelligence** — inspect pollutant-level summaries, station counts, sensor readings and observation freshness.
 - **Environmental Analytics** — explore weather forecasts and available historical weather and air-quality observations.
 - **Predictive Intelligence** — view experimental machine-learning estimates when enough historical observations are available and the model performs better than a simple baseline.
 - **Anomaly Detection** — identify unusual weather patterns relative to the platform's collected historical baseline.
-- **Zone Intelligence** — explore the locations of nearby air-quality monitoring stations on a map.
+- **Zone Intelligence** — explore nearby monitoring stations on an interactive map, filter by pollutant and inspect station-level readings. Sparse coverage is explicitly flagged.
 - **Scenario Simulator** — adjust environmental assumptions and explore how they affect the project's experimental index.
 - **Methodology** — understand the data sources, index approach and current limitations.
 
