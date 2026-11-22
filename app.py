@@ -98,9 +98,13 @@ city_name = st.sidebar.selectbox("Pilot city", list(CITIES.keys()), index=0)
 city = CITIES[city_name]
 if not history.empty and "city" in history.columns:
     history = history.loc[history["city"] == city_name].copy()
+def _open_zone_intelligence():
+    st.session_state["workspace_page"] = "Zone Intelligence"
+
 page = st.sidebar.radio(
     "Workspace",
     ["Command Center", "Environmental Analytics", "Predictive Intelligence", "Anomaly Detection", "Zone Intelligence", "Scenario Simulator", "Methodology"],
+    key="workspace_page",
 )
 st.sidebar.divider()
 st.sidebar.caption("Data: Open-Meteo · OpenAQ")
@@ -155,8 +159,19 @@ if not weather.empty:
     weather = add_weather_stress(weather)
 
 st.markdown('<div class="pulse">LIVE URBAN INTELLIGENCE &nbsp;·&nbsp; PILOT 01</div>', unsafe_allow_html=True)
-st.title(f"{city_name} Urban Stress Monitor")
-st.markdown('<p class="subtle">See the city in colour — environmental signals, emerging patterns and experimental urban intelligence in one workspace.</p>', unsafe_allow_html=True)
+hero_title, hero_action = st.columns([5, 2], vertical_alignment="center")
+with hero_title:
+    st.title(f"{city_name} Urban Stress Monitor")
+    st.markdown('<p class="subtle">See the city in colour — environmental signals, emerging patterns and experimental urban intelligence in one workspace.</p>', unsafe_allow_html=True)
+with hero_action:
+    st.button(
+        "Explore Zone Intelligence  →",
+        key="hero_zone_intelligence",
+        type="primary",
+        use_container_width=True,
+        on_click=_open_zone_intelligence,
+        help=f"Open the zone intelligence view for {city_name}",
+    )
 st.markdown('<div style="height:1px;background:linear-gradient(90deg,#39D5F6,#A78BFA,#FB7185,#F59E0B,#A3E635);opacity:.7;margin:1rem 0 1.35rem;border-radius:4px"></div>', unsafe_allow_html=True)
 
 if page == "Command Center":
