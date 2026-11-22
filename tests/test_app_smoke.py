@@ -43,9 +43,9 @@ def test_streamlit_workspace_pages_render_when_providers_are_unavailable(monkeyp
     assert not app.exception, [item.message for item in app.exception]
     assert app.selectbox[1].value in COUNTRY_CITIES["United States"]
 
-    workspace = app.radio[0]
     for page in WORKSPACE_PAGES:
-        workspace.set_value(page)
+        # Reacquire the element after each script rerun; AppTest refreshes its tree.
+        app.radio[0].set_value(page)
         app.run(timeout=90)
         assert not app.exception, (
             f"Workspace page {page!r} raised an uncaught exception: "
