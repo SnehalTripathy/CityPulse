@@ -8,6 +8,7 @@ data/raw/*.parquet
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/processed/daily_city_observations.csv
 .DS_Store
 .pytest_cache/
 .coverage
