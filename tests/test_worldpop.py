@@ -67,6 +67,8 @@ def test_population_context_parses_ring_counts_and_age_groups(monkeypatch):
     result = fetch_population_context(12.0,77.0)
     assert result["data_year"] == 2025
     assert result["total_population_10km"] == 35000
+    assert result["population_density_km2"] == round(35000 / 314.0, 6)
+    assert "R2025A" in result["data_source"]
     assert result["rings"][1]["population"] == 5000
     assert result["demographic_groups"]["under_5"]["share"] == 0.10
     assert len(captured) == 2
