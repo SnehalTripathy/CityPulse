@@ -196,7 +196,12 @@ def update_daily_observation_archive(
         if window_start is not None and not existing.empty and "date" in existing:
             existing_dates = pd.to_datetime(existing["date"], errors="coerce", utc=True)
             existing = existing.loc[existing_dates < window_start].copy()
-    combined = pd.concat([existing, daily_new], ignore_index=True)
+    if existing.empty:
+        combined = daily_new.copy()
+    elif daily_new.empty:
+        combined = existing.copy()
+    else:
+        combined = pd.concat([existing, daily_new], ignore_index=True)
     combined["date"] = pd.to_datetime(combined["date"], errors="coerce", utc=True)
     combined = combined.dropna(subset=["date"])
     dedupe = ["source", "city", "location_id", "station", "parameter", "unit", "date"]
