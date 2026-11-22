@@ -83,9 +83,21 @@ def build_city_trend_frame(
         reading_count=("reading_count", "sum"),
         station_count=(station_key, "nunique"),
     )
+    # Reindex to a complete shared UTC calendar so charts can display real
+    # breaks where no daily observation exists. These rows remain NaN.
+    date_index = pd.date_range(
+        start=cutoff.floor("D"), end=now.floor("D"), freq="D", tz="UTC"
+    )
+    full_index = pd.MultiIndex.from_product(
+        [cities, date_index], names=["city", "date"]
+    )
+    trend = trend.set_index(["city", "date"]).reindex(full_index).reset_index()
+    trend["reading_count"] = trend["reading_count"].fillna(0).astype(int)
+    trend["station_count"] = trend["station_count"].fillna(0).astype(int)
     trend = trend.sort_values(["date", "city"]).reset_index(drop=True)
 
-    coverage = trend.groupby("city").agg(
+    observed_trend = trend.loc[trend["value"].notna()].copy()
+    coverage = observed_trend.groupby("city").agg(
         days_with_data=("date", "nunique"),
         readings=("reading_count", "sum"),
         first_day=("date", "min"),
