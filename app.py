@@ -723,16 +723,71 @@ elif page == "Zone Intelligence":
         st.dataframe(green_spaces[["name", "category", "distance_km", "latitude", "longitude"]].sort_values(["distance_km", "name"]).style.format({"distance_km":"{:.2f}"}), use_container_width=True, hide_index=True)
         st.caption("OpenStreetMap is community-mapped (© OpenStreetMap contributors). Distances are straight-line from the approximate city centre to mapped feature centres, not walking routes; listings are not a complete inventory of parks or tree cover. [Map data attribution](https://www.openstreetmap.org/copyright).")
 
-    st.markdown("### Satellite land-surface temperature")
-    st.caption("NASA MODIS Terra daytime land-surface temperature imagery (about 1 km, daily). This is surface temperature, not near-surface air temperature; cloud gaps and the overpass snapshot mean it is context for UHI investigation, not a standalone urban-heat-island score.")
-    if st.checkbox("Load NASA daytime land-surface temperature layer", value=True, key="zone_load_nasa_lst"):
+    st.markdown("### Landsat surface-temperature contrast")
+    st.caption("CityPulse searches recent Landsat Collection 2 Level-2 scenes, masks cloud/shadow/snow/fill/water pixels, applies the USGS temperature scale factor and compares measured thermal pixels.")
+    run_landsat = st.checkbox("Run latest usable Landsat analysis", value=False, key="zone_run_landsat_analysis")
+    if run_landsat:
         try:
-            with st.spinner("Loading NASA satellite temperature imagery…"):
-                lst_image, lst_date = load_land_surface_temperature(city["latitude"], city["longitude"])
-            st.image(lst_image, caption=f"NASA GIBS · MODIS Terra daytime land-surface temperature · {lst_date}", use_container_width=True)
+            with st.spinner("Searching and processing recent Landsat scenes…"):
+                landsat_pixels, landsat_info = load_landsat_analysis(city["latitude"], city["longitude"])
+            if landsat_info.get("status") == "ready":
+                st.metric(
+                    "Urban-core vs vegetated-reference surface temperature",
+                    f"{landsat_info['surface_temperature_contrast_c']:+.1f} °C",
+                    help="Median surface temperature of the low-NDVI urban-core proxy minus the high-NDVI vegetated outer reference for one Landsat overpass.",
+                )
+                scene_cols = st.columns(4)
+                scene_cols[0].metric("Scene date", str(landsat_info.get("acquired", "Unavailable"))[:10])
+                scene_cols[1].metric("Clear valid pixels", f"{landsat_info['valid_pixels']:,}")
+                scene_cols[2].metric("Urban proxy pixels", f"{landsat_info['urban_pixels']:,}")
+                scene_cols[3].metric("Vegetated reference pixels", f"{landsat_info['reference_pixels']:,}")
+                st.caption(
+                    f"Urban-core median: {landsat_info['urban_proxy_median_c']:.1f} °C · "
+                    f"Vegetated reference median: {landsat_info['vegetated_reference_median_c']:.1f} °C · "
+                    f"Scene-wide cloud estimate: {landsat_info.get('cloud_cover_scene_pct', float('nan')):.1f}% · "
+                    f"Scene: {landsat_info.get('scene_id')}"
+                )
+                if not landsat_pixels.empty:
+                    lst_fig = px.scatter_mapbox(
+                        landsat_pixels,
+                        lat="latitude",
+                        lon="longitude",
+                        color="temperature_c",
+                        hover_data=["surface_class", "ndvi", "distance_km"],
+                        color_continuous_scale="Turbo",
+                        zoom=9,
+                        height=500,
+                        labels={"temperature_c":"Surface temp (°C)"},
+                    )
+                    lst_fig.update_layout(
+                        mapbox_style="carto-darkmatter",
+                        mapbox_center={"lat":city["latitude"], "lon":city["longitude"]},
+                        paper_bgcolor="#0B1220",
+                        margin={"l":0, "r":0, "t":10, "b":0},
+                    )
+                    st.plotly_chart(lst_fig, use_container_width=True)
+                st.warning(
+                    "This is a single-scene surface-temperature contrast, not a climatological or official UHI estimate. "
+                    "The urban-core proxy is within 5 km of the approximate city centre with NDVI ≤0.20; "
+                    "the vegetated reference is 10–25 km away with NDVI ≥0.35. Local land cover, season, weather, "
+                    "scene gaps and the approximate city-centre point affect this comparison."
+                )
+                st.caption("Landsat Collection 2 Level-2 surface temperature is scaled as DN × 0.00341802 + 149 K, then converted to °C. Cloud, shadow, snow, fill and water pixels are excluded.")
+            else:
+                st.info(f"Landsat analysis unavailable: {landsat_info.get('status', 'unknown status')}. {landsat_info.get('error', 'No suitable recent scene had enough valid urban and vegetated-reference pixels.')}")
         except Exception as exc:
-            st.warning(f"NASA satellite layer is temporarily unavailable: {exc}")
-    st.markdown("[NASA Global Imagery Browse Services](https://gibs.earthdata.nasa.gov/) · [MODIS layer description](https://geodiscovery.uwm.edu/catalog/nasa-gibs-modis_terra_land_surface_temp_day)")
+            st.warning(f"Landsat analysis is temporarily unavailable: {exc}")
+    else:
+        st.info("Enable the analysis to search for a recent clear Landsat scene. Processing is cached for seven days per city.")
+
+    st.markdown("[USGS Landsat Collection 2 surface-temperature product](https://www.usgs.gov/landsat-missions/landsat-collection-2-surface-temperature) · [Microsoft Planetary Computer STAC catalog](https://planetarycomputer.microsoft.com/catalog/dataset/landsat-c2-l2)")
+    if st.checkbox("Show NASA MODIS daily temperature context image", value=False, key="zone_load_nasa_lst"):
+        try:
+            with st.spinner("Loading NASA MODIS context imagery…"):
+                lst_image, lst_date = load_land_surface_temperature(city["latitude"], city["longitude"])
+            st.image(lst_image, caption=f"NASA GIBS · MODIS Terra daytime surface temperature · {lst_date}", use_container_width=True)
+        except Exception as exc:
+            st.warning(f"NASA satellite context layer is temporarily unavailable: {exc}")
 
     st.markdown("### Land-cover classification")
     st.caption("ESA WorldCover 2021 at 10 m resolution. The classification is a dated reference layer, not a live vegetation monitor.")
