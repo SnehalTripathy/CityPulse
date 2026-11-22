@@ -1464,6 +1464,17 @@ elif page == "Environmental Health & Exposure":
                 use_container_width=True,
                 hide_index=True,
             )
+                # Demographic sensitivity context: separate age cohorts, never combine into an unsupported risk score.
+        under5_share = groups.get("under_5", {}).get("share")
+        older_share = groups.get("age_65_plus", {}).get("share")
+        if under5_share is not None or older_share is not None:
+            st.markdown("### Demographic sensitivity indicators")
+            sensitivity_cols = st.columns(3)
+            sensitivity_cols[0].metric("Under-5 population share", f"{float(under5_share):.1%}" if under5_share is not None and pd.notna(under5_share) else "Unavailable")
+            sensitivity_cols[1].metric("Age 65+ population share", f"{float(older_share):.1%}" if older_share is not None and pd.notna(older_share) else "Unavailable")
+            combined_share = sum(float(value) for value in (under5_share, older_share) if value is not None and pd.notna(value))
+            sensitivity_cols[2].metric("Combined demographic share", f"{combined_share:.1%}" if under5_share is not None and older_share is not None else "Partial data")
+            st.caption("These are demographic context indicators only. They are not a validated heat-vulnerability score: health, housing, income, occupation, cooling access, urban form and individual exposure are not measured here.")
                 # Evidence availability is shown separately from demographic context; no synthetic confidence score.
         exposure_quality = source_quality_summary(weather_current, air)
         exposure_air = exposure_quality["air_quality"]
