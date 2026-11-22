@@ -800,34 +800,52 @@ elif page == "Zone Intelligence":
                 landsat_pixels, landsat_info = load_landsat_analysis(city["latitude"], city["longitude"])
             if landsat_info.get("status") == "ready":
                 st.metric(
-                    "Urban-core vs vegetated-reference surface temperature",
+                    "Median scene-based surface-temperature contrast",
                     f"{landsat_info['surface_temperature_contrast_c']:+.1f} °C",
-                    help="Median surface temperature of the low-NDVI urban-core proxy minus the high-NDVI vegetated outer reference for one Landsat overpass.",
+                    help="Median across usable Landsat overpasses of urban-core proxy median minus vegetated-reference median. This is exploratory surface-temperature contrast, not an official or climatological UHI metric.",
+                )
+                temporal_cols = st.columns(4)
+                temporal_cols[0].metric("Usable scenes", f"{landsat_info['scene_count']:,}")
+                temporal_cols[1].metric("Scene date span", f"{landsat_info['temporal_span_days']:,} days")
+                temporal_cols[2].metric(
+                    "Between-scene contrast range",
+                    f"{landsat_info['contrast_min_c']:.1f} to {landsat_info['contrast_max_c']:.1f} °C",
+                )
+                uncertainty = landsat_info.get("median_st_uncertainty_k")
+                temporal_cols[3].metric(
+                    "Median ST-QA uncertainty",
+                    f"{uncertainty:.2f} K" if uncertainty is not None else "Unavailable",
                 )
                 scene_cols = st.columns(4)
-                scene_cols[0].metric("Scene date", str(landsat_info.get("acquired", "Unavailable"))[:10])
+                scene_cols[0].metric("Latest usable scene", str(landsat_info.get("acquired", "Unavailable"))[:10])
                 scene_cols[1].metric("Clear valid pixels", f"{landsat_info['valid_pixels']:,}")
                 scene_cols[2].metric("Urban proxy pixels", f"{landsat_info['urban_pixels']:,}")
                 scene_cols[3].metric("Vegetated reference pixels", f"{landsat_info['reference_pixels']:,}")
                 cloud_cover = landsat_info.get("cloud_cover_scene_pct")
                 cloud_cover_label = f"{float(cloud_cover):.1f}%" if cloud_cover is not None else "Unavailable"
                 st.caption(
-                    f"Urban-core median: {landsat_info['urban_proxy_median_c']:.1f} °C · "
-                    f"Vegetated reference median: {landsat_info['vegetated_reference_median_c']:.1f} °C · "
-                    f"Scene-wide cloud estimate: {cloud_cover_label} · "
-                    f"Scene: {landsat_info.get('scene_id')}"
+                    f"Latest scene urban-core median: {landsat_info['urban_proxy_median_c']:.1f} °C · "
+                    f"latest vegetated reference median: {landsat_info['vegetated_reference_median_c']:.1f} °C · "
+                    f"latest scene-wide cloud estimate: {cloud_cover_label} · "
+                    f"scene: {landsat_info.get('scene_id')}"
                 )
                 if not landsat_pixels.empty:
+                    map_hover = ["surface_class", "ndvi", "distance_km"]
+                    if "st_uncertainty_k" in landsat_pixels.columns:
+                        map_hover.append("st_uncertainty_k")
                     lst_fig = px.scatter_mapbox(
                         landsat_pixels,
                         lat="latitude",
                         lon="longitude",
                         color="temperature_c",
-                        hover_data=["surface_class", "ndvi", "distance_km"],
+                        hover_data=map_hover,
                         color_continuous_scale="Turbo",
                         zoom=9,
                         height=500,
-                        labels={"temperature_c":"Surface temp (°C)"},
+                        labels={
+                            "temperature_c":"Surface temp (°C)",
+                            "st_uncertainty_k":"ST-QA uncertainty (K)",
+                        },
                     )
                     lst_fig.update_layout(
                         mapbox_style="carto-darkmatter",
@@ -836,13 +854,47 @@ elif page == "Zone Intelligence":
                         margin={"l":0, "r":0, "t":10, "b":0},
                     )
                     st.plotly_chart(lst_fig, use_container_width=True)
+                scene_table = pd.DataFrame(landsat_info.get("scene_contrasts", []))
+                if not scene_table.empty:
+                    with st.expander("Scene-by-scene surface-temperature contrasts"):
+                        st.dataframe(
+                            scene_table.rename(columns={
+                                "date":"Scene date (UTC)",
+                                "contrast_c":"Surface-temperature contrast (°C)",
+                                "urban_median_c":"Urban-proxy median (°C)",
+                                "vegetated_median_c":"Vegetated-reference median (°C)",
+                                "valid_pixels":"Valid pixels",
+                                "cloud_cover_scene_pct":"Scene-wide cloud estimate (%)",
+                            }).style.format({
+                                "Surface-temperature contrast (°C)":"{:.2f}",
+                                "Urban-proxy median (°C)":"{:.2f}",
+                                "Vegetated-reference median (°C)":"{:.2f}",
+                                "Scene-wide cloud estimate (%)":"{:.1f}",
+                            }),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+                if landsat_info["scene_count"] < 3:
+                    st.warning(
+                        f"Only {landsat_info['scene_count']} usable scene(s) met the clear-pixel requirements. "
+                        "Treat the contrast as provisional; a multi-season UHI assessment needs more usable dates."
+                    )
+                else:
+                    st.info(
+                        f"The displayed contrast is the median across {landsat_info['scene_count']} usable scenes. "
+                        "The date range and scene-by-scene spread are shown above; this is not a long-term seasonal climatology."
+                    )
                 st.warning(
-                    "This is a single-scene surface-temperature contrast, not a climatological or official UHI estimate. "
                     "The urban-core proxy is within 5 km of the approximate city centre with NDVI ≤0.20; "
-                    "the vegetated reference is 10–25 km away with NDVI ≥0.35. Local land cover, season, weather, "
-                    "scene gaps and the approximate city-centre point affect this comparison."
+                    "the vegetated reference is 10–25 km away with NDVI ≥0.35. Low NDVI is only a built/bare proxy, "
+                    "not a verified urban land-cover class. Cloud gaps, season, weather, terrain and the approximate "
+                    "city-centre point affect the contrast."
                 )
-                st.caption("Landsat Collection 2 Level-2 surface temperature is scaled as DN × 0.00341802 + 149 K, then converted to °C. Cloud, shadow, snow, fill and water pixels are excluded.")
+                st.caption(
+                    "Landsat Collection 2 Level-2 ST is scaled as DN × 0.00341802 + 149 K, then converted to °C. "
+                    "Reflectance bands use DN × 0.0000275 − 0.2 for NDVI. QA_PIXEL cloud/shadow/snow/fill/water "
+                    "and QA_RADSAT thermal-saturation/terrain flags are excluded. ST-QA uncertainty is shown where available."
+                )
             else:
                 st.info(f"Landsat analysis unavailable: {landsat_info.get('status', 'unknown status')}. {landsat_info.get('error', 'No suitable recent scene had enough valid urban and vegetated-reference pixels.')}")
         except Exception as exc:
