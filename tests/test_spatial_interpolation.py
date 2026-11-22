@@ -36,6 +36,8 @@ def test_surface_is_generated_only_with_recent_comparable_stations():
     assert surface["nearest_station_km"].max() <= 3.0
     assert details["station_count"] == 7
     assert details["leave_one_out_mae"] is not None
+    assert details["median_baseline_mae"] is not None
+    assert details["idw_beats_baseline"] is True
 
 
 def test_surface_is_withheld_when_station_coverage_is_sparse():
@@ -68,3 +70,15 @@ def test_mobile_stations_are_excluded_from_fixed_station_surface():
     )
     assert status == "ready"
     assert details["station_count"] == 6
+
+
+
+def test_surface_is_withheld_when_idw_does_not_beat_median_baseline():
+    air = _station_grid()
+    air["value"] = 25
+    status, surface, details = interpolate_station_surface(
+        air, "pm25", "µg/m³", now=pd.Timestamp("2026-11-22T18:00:00Z")
+    )
+    assert status == "failed_cross_validation"
+    assert surface.empty
+    assert details["idw_beats_baseline"] is False
