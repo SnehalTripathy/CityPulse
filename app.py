@@ -13,6 +13,9 @@ from ingestion.openaq_api import fetch_latest_measurements
 from analytics.stress_index import add_weather_stress
 from analytics.data_quality import summarize_air_quality
 from analytics.comparison import build_city_comparison_record
+from analytics.trends import TREND_METRICS, build_city_trend_frame
+from analytics.zone_intelligence import build_zone_coverage, detect_observed_hotspot_clusters
+from ingestion.geo_layers import fetch_green_spaces, fetch_nasa_land_surface_temperature, fetch_esa_worldcover
 from analytics.urban_stress import calculate_urban_stress
 from ml.anomaly import detect_recent_weather_anomaly
 from ml.forecasting import train_next_observation_model
@@ -32,6 +35,7 @@ def load_history() -> pd.DataFrame:
     return load_observations()
 
 history = load_history()
+all_history = history.copy()
 
 st.markdown("""
 <style>
@@ -133,6 +137,18 @@ def load_weather(lat: float, lon: float, timezone_name: str = "auto") -> pd.Data
 @st.cache_data(ttl=900, show_spinner=False)
 def load_air(lat: float, lon: float, key: str | None) -> pd.DataFrame:
     return fetch_latest_measurements(lat, lon, key)
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_green_spaces(lat: float, lon: float) -> pd.DataFrame:
+    return fetch_green_spaces(lat, lon)
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_worldcover(lat: float, lon: float) -> bytes:
+    return fetch_esa_worldcover(lat, lon)
+
+@st.cache_data(ttl=43200, show_spinner=False)
+def load_land_surface_temperature(lat: float, lon: float):
+    return fetch_nasa_land_surface_temperature(lat, lon)
 
 def get_forward_hours(frame: pd.DataFrame, current: dict, count: int) -> pd.DataFrame:
     if frame.empty or "time" not in frame.columns:
@@ -274,6 +290,41 @@ if page == "City Comparison":
         st.warning(error)
     if st.session_state.get("city_comparison_result", pd.DataFrame()).empty:
         st.info("Select at least two cities and run the comparison. City comparison calls are cached to reduce repeat requests.")
+
+    st.divider()
+    st.markdown("### Historical multi-city trends")
+    st.caption("Daily medians from the committed observation archive. Cities share the same UTC calendar-day window; missing days are left blank, never interpolated.")
+    trend_cols = st.columns([2, 1])
+    with trend_cols[0]:
+        trend_metric = st.selectbox("Trend metric", list(TREND_METRICS), key="comparison_trend_metric")
+    with trend_cols[1]:
+        trend_days = st.selectbox("History window", [7, 30, 90, 180], index=1, format_func=lambda value: f"Last {value} days", key="comparison_trend_days")
+    if len(comparison_cities) < 2:
+        st.info("Choose at least two cities above to compare historical trends.")
+    elif all_history.empty:
+        st.info("The shared observation archive is not available in this deployment yet. Historical comparisons will appear as scheduled collection builds city records.")
+    else:
+        trend_frame, trend_coverage = build_city_trend_frame(
+            all_history, comparison_cities, trend_metric, days=trend_days
+        )
+        if trend_frame.empty:
+            st.info(f"No archived {trend_metric} observations were found for these cities in the selected {trend_days}-day window.")
+        else:
+            st.markdown("#### History coverage")
+            st.dataframe(trend_coverage, use_container_width=True, hide_index=True)
+            eligible_cities = trend_coverage.loc[trend_coverage["Days with data"] >= 3, "City"].tolist()
+            if len(eligible_cities) >= 2:
+                chart_data = trend_frame.loc[trend_frame["city"].isin(eligible_cities)].copy()
+                fig = px.line(
+                    chart_data, x="date", y="value", color="city", markers=True,
+                    hover_data=["reading_count", "station_count"], template="plotly_dark",
+                    labels={"date":"UTC date", "value":trend_metric, "city":"City"},
+                )
+                fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238", legend_title_text="City")
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption("Each point is a daily median. PM values aggregate station-day medians and retain only mass-concentration units (µg/m³). Weather values are Open-Meteo modelled grid-cell data. Daily coverage is shown above; trend lines do not imply equal sensor density.")
+            else:
+                st.info("At least three observed UTC days in each of two cities are needed before a trend is drawn. The archive is still building or coverage is uneven.")
 elif page == "Air Quality Intelligence":
     st.subheader("Air quality intelligence")
     if air.empty:
@@ -478,56 +529,147 @@ elif page == "Anomaly Detection":
     st.caption("Isolation Forest flags statistical outliers in local weather features. It does not assess health risk or prove an environmental incident.")
 elif page == "Zone Intelligence":
     st.subheader("Zone intelligence")
-    st.caption("This view maps actual monitoring station coordinates. It does not interpolate readings into unmeasured neighbourhoods.")
+    st.caption("Explore returned OpenAQ station observations, their spatial distribution, mapped green spaces and satellite context. Station points are measurements; satellite layers are contextual imagery.")
+    show_green = st.checkbox("Show mapped parks and green/vegetated spaces (OpenStreetMap)", value=True, key="zone_show_green")
+    green_spaces = pd.DataFrame()
+    green_error = None
+    if show_green:
+        try:
+            with st.spinner("Loading nearby mapped green spaces…"):
+                green_spaces = load_green_spaces(city["latitude"], city["longitude"])
+        except Exception as exc:
+            green_error = str(exc)
+
+    coverage, station_inventory, occupied_cells = build_zone_coverage(
+        air, city["latitude"], city["longitude"]
+    ) if not air.empty else (
+        {"station_count":0, "geocoded_station_count":0, "nearest_station_km":None,
+         "median_station_distance_km":None, "farthest_station_km":None,
+         "occupied_grid_cells":0, "fresh_stations":0, "recent_stations":0,
+         "stale_stations":0, "query_radius_km":25.0},
+        pd.DataFrame(), pd.DataFrame()
+    )
     if not air.empty and {"latitude", "longitude"}.issubset(air.columns):
         geo = air.dropna(subset=["latitude", "longitude"]).copy()
-        if not geo.empty:
-            station_count = geo["location_id"].nunique() if "location_id" in geo.columns else geo["station"].nunique()
-            closest_distance = pd.to_numeric(geo.get("distance_m"), errors="coerce").min() if "distance_m" in geo.columns else None
-            kpis = st.columns(3)
-            kpis[0].metric("Mapped stations", f"{station_count:,}")
-            kpis[1].metric("Sensor readings", f"{len(geo):,}")
-            kpis[2].metric("Nearest station", f"{closest_distance / 1000:.1f} km" if pd.notna(closest_distance) else "Unknown")
-            parameters = sorted(geo["parameter"].dropna().astype(str).unique().tolist())
-            selected_parameter = st.selectbox("Map pollutant", parameters, key="zone_map_parameter") if parameters else None
-            parameter_data = geo.loc[geo["parameter"].astype(str) == selected_parameter].copy() if selected_parameter else geo
-            map_units = sorted(parameter_data["unit"].dropna().astype(str).unique().tolist()) if "unit" in parameter_data.columns else []
-            selected_unit = st.selectbox("Measurement unit", map_units, key="zone_map_unit") if map_units else None
-            map_data = parameter_data.loc[parameter_data["unit"].astype(str) == selected_unit].copy() if selected_unit else parameter_data
-            if not map_data.empty:
-                fig = px.scatter_mapbox(
-                    map_data,
-                    lat="latitude",
-                    lon="longitude",
-                    color="value",
-                    hover_name="station",
-                    hover_data=[column for column in ["parameter", "value", "unit", "datetime_local", "distance_m"] if column in map_data.columns],
-                    color_continuous_scale="Turbo",
-                    zoom=9,
-                    height=540,
-                )
-                fig.update_layout(
-                    mapbox_style="carto-darkmatter",
-                    mapbox_center={"lat": city["latitude"], "lon": city["longitude"]},
-                    paper_bgcolor="#0B1220",
-                    margin={"l": 0, "r": 0, "t": 10, "b": 0},
-                    coloraxis_colorbar_title="Reported value",
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            stations = sorted(geo["station"].dropna().astype(str).unique().tolist())
-            if stations:
-                selected_station = st.selectbox("Inspect monitoring station", stations, key="zone_station")
-                station_rows = geo.loc[geo["station"].astype(str) == selected_station]
-                st.dataframe(station_rows[[column for column in ["parameter", "value", "unit", "datetime_local", "datetime_utc", "distance_m"] if column in station_rows.columns]], use_container_width=True, hide_index=True)
-            if station_count < 5:
-                st.warning("Sparse monitoring coverage: the available stations are not sufficient to infer neighbourhood pollution hotspots.")
-            else:
-                st.info("Station distribution is shown for orientation. No spatial interpolation or neighbourhood exposure estimate is being claimed.")
-        else:
-            st.info("OpenAQ returned readings without usable coordinates.")
     else:
-        st.info("No geocoded OpenAQ stations are available for this city. The map cannot show neighbourhood measurements.")
-        st.map(pd.DataFrame({"lat":[city["latitude"]],"lon":[city["longitude"]]}), latitude="lat", longitude="lon")
+        geo = pd.DataFrame()
+
+    coverage_cols = st.columns(4)
+    coverage_cols[0].metric("Returned stations", f"{coverage['station_count']:,}")
+    coverage_cols[1].metric("Geocoded stations", f"{coverage['geocoded_station_count']:,}")
+    coverage_cols[2].metric("Fresh stations (≤6 h)", f"{coverage['fresh_stations']:,}")
+    coverage_cols[3].metric("Occupied 5 km cells", f"{coverage['occupied_grid_cells']:,}")
+    st.caption(
+        f"Coverage describes OpenAQ's returned sample (up to 12 nearby locations within an approximately 25 km query radius). "
+        f"Occupied cells show where returned stations fall; empty cells are not treated as confirmed monitoring gaps."
+    )
+    distance_cols = st.columns(3)
+    distance_cols[0].metric("Nearest returned station", f"{coverage['nearest_station_km']:.1f} km" if coverage["nearest_station_km"] is not None else "Unavailable")
+    distance_cols[1].metric("Median station distance", f"{coverage['median_station_distance_km']:.1f} km" if coverage["median_station_distance_km"] is not None else "Unavailable")
+    distance_cols[2].metric("Stale stations (>48 h)", f"{coverage['stale_stations']:,}")
+
+    parameters = sorted(geo["parameter"].dropna().astype(str).unique().tolist()) if not geo.empty else []
+    selected_parameter = st.selectbox("Map pollutant", parameters, key="zone_map_parameter") if parameters else None
+    parameter_data = geo.loc[geo["parameter"].astype(str) == selected_parameter].copy() if selected_parameter else pd.DataFrame()
+    map_units = sorted(parameter_data["unit"].dropna().astype(str).unique().tolist()) if not parameter_data.empty and "unit" in parameter_data.columns else []
+    selected_unit = st.selectbox("Measurement unit", map_units, key="zone_map_unit") if map_units else None
+    map_data = parameter_data.loc[parameter_data["unit"].astype(str) == selected_unit].copy() if selected_unit else pd.DataFrame()
+    if not map_data.empty:
+        station_key = "location_id" if "location_id" in map_data.columns else "station"
+        map_data["datetime_utc"] = pd.to_datetime(map_data["datetime_utc"], errors="coerce", utc=True)
+        map_data = map_data.sort_values("datetime_utc").drop_duplicates(subset=[station_key], keep="last")
+        fig = px.scatter_mapbox(
+            map_data, lat="latitude", lon="longitude", color="value",
+            hover_name="station",
+            hover_data=[column for column in ["parameter", "value", "unit", "datetime_local", "datetime_utc", "distance_m"] if column in map_data.columns],
+            color_continuous_scale="Turbo", zoom=9, height=560,
+        )
+        if show_green and not green_spaces.empty:
+            fig.add_scattermapbox(
+                lat=green_spaces["latitude"], lon=green_spaces["longitude"],
+                mode="markers", name="Mapped green spaces",
+                marker={"size":11, "color":"#7CDE8B", "opacity":0.9},
+                text=green_spaces["name"] + " · " + green_spaces["category"],
+                hovertemplate="%{text}<extra>OpenStreetMap</extra>",
+            )
+        fig.update_layout(
+            mapbox_style="carto-darkmatter",
+            mapbox_center={"lat":city["latitude"], "lon":city["longitude"]},
+            paper_bgcolor="#0B1220", margin={"l":0, "r":0, "t":10, "b":0},
+            coloraxis_colorbar_title=f"{selected_parameter} ({selected_unit})",
+            legend={"bgcolor":"rgba(11,18,32,.7)"},
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    elif geo.empty:
+        st.info("No geocoded OpenAQ stations are available for this city. The map cannot show measured neighbourhood pollution.")
+    else:
+        st.info("No readings are available for the selected pollutant/unit combination.")
+
+    st.markdown("### Station inventory and freshness")
+    if station_inventory.empty:
+        st.info("Station-level inventory is unavailable because no timestamped station records were returned.")
+    else:
+        st.dataframe(
+            station_inventory[["station", "distance_km", "latest_utc", "age_hours", "freshness", "pollutant_count", "reading_count"]].style.format({"distance_km":"{:.2f}", "age_hours":"{:.1f}"}),
+            use_container_width=True, hide_index=True,
+        )
+        st.caption("Fresh ≤6 hours · Recent 6–48 hours · Stale >48 hours. These labels describe the newest provider timestamp per returned station, not instrument calibration.")
+    if not occupied_cells.empty:
+        st.markdown("### Returned-station distribution")
+        st.dataframe(occupied_cells.rename(columns={"grid_x":"5 km grid X (local offset)", "grid_y":"5 km grid Y (local offset)", "station_count":"Stations in occupied cell", "station_names":"Returned stations"}), use_container_width=True, hide_index=True)
+        st.caption("Grid coordinates are relative to the selected city centre. Only occupied cells are listed; this is not a city-boundary coverage or interpolation map.")
+
+    st.markdown("### Observed pollution cluster screening")
+    st.caption("Screens for a cluster of relatively elevated, recent station values: at least six stations with the same pollutant/unit, each observed within six hours; high values must be in a multi-station group within 5 km.")
+    if selected_parameter and selected_unit:
+        hotspot_status, hotspot_stations, hotspot_sample_count = detect_observed_hotspot_clusters(
+            geo, selected_parameter, selected_unit
+        )
+        if hotspot_status == "cluster_found":
+            st.warning(f"Relative elevated station cluster found among {hotspot_sample_count} recent stations. This is a local sample comparison, not an official threshold, health warning or interpolated neighbourhood surface.")
+            st.dataframe(hotspot_stations, use_container_width=True, hide_index=True)
+        elif hotspot_status == "insufficient_station_density":
+            st.info(f"Only {hotspot_sample_count} recent, comparable stations are available. At least six are required; no hotspot inference is made.")
+        elif hotspot_status == "no_fresh_observations":
+            st.info("There are no observations within the six-hour screening window. Historical readings are shown for context only.")
+        elif hotspot_status == "no_cluster":
+            st.info(f"No multi-station cluster of relatively high readings was identified among {hotspot_sample_count} recent stations.")
+        else:
+            st.info("The selected pollutant/unit does not have sufficient comparable station data for cluster screening.")
+
+    st.markdown("### Green space and vegetation context")
+    if green_error:
+        st.warning(f"OpenStreetMap green-space lookup unavailable: {green_error}")
+    elif not show_green:
+        st.caption("Enable the green-space layer above to query mapped parks, gardens, forests and grass areas.")
+    elif green_spaces.empty:
+        st.info("No nearby mapped green spaces were returned. This may reflect OpenStreetMap coverage, not an absence of green space.")
+    else:
+        st.metric("Mapped green/vegetated features within 5 km", f"{len(green_spaces):,}")
+        st.dataframe(green_spaces[["name", "category", "latitude", "longitude"]].sort_values(["category", "name"]), use_container_width=True, hide_index=True)
+        st.caption("OpenStreetMap is community-mapped. Features are listed by mapped centre point; this is not a complete tree-cover inventory or walking-route accessibility estimate.")
+
+    st.markdown("### Satellite land-surface temperature")
+    st.caption("NASA MODIS Terra daytime land-surface temperature imagery (about 1 km, daily). This is surface temperature, not near-surface air temperature; cloud gaps and the overpass snapshot mean it is context for UHI investigation, not a standalone urban-heat-island score.")
+    if st.checkbox("Load NASA daytime land-surface temperature layer", value=True, key="zone_load_nasa_lst"):
+        try:
+            with st.spinner("Loading NASA satellite temperature imagery…"):
+                lst_image, lst_date = load_land_surface_temperature(city["latitude"], city["longitude"])
+            st.image(lst_image, caption=f"NASA GIBS · MODIS Terra daytime land-surface temperature · {lst_date}", use_container_width=True)
+        except Exception as exc:
+            st.warning(f"NASA satellite layer is temporarily unavailable: {exc}")
+    st.markdown("[NASA Global Imagery Browse Services](https://gibs.earthdata.nasa.gov/) · [MODIS layer description](https://geodiscovery.uwm.edu/catalog/nasa-gibs-modis_terra_land_surface_temp_day)")
+
+    st.markdown("### Land-cover classification")
+    st.caption("ESA WorldCover 2021 at 10 m resolution. The classification is a dated reference layer, not a live vegetation monitor.")
+    if st.checkbox("Load ESA WorldCover 2021 layer", value=True, key="zone_load_worldcover"):
+        try:
+            with st.spinner("Loading ESA land-cover classification…"):
+                cover_image = load_worldcover(city["latitude"], city["longitude"])
+            st.image(cover_image, caption="ESA WorldCover 2021 · 10 m land-cover classification", use_container_width=True)
+            st.caption("Classes include tree cover, shrubland, grassland, cropland, built-up, bare/sparse vegetation, water, wetland, mangroves and moss/lichen. [Dataset access and attribution](https://esa-worldcover.org/en/data-access)")
+        except Exception as exc:
+            st.warning(f"ESA WorldCover layer is temporarily unavailable: {exc}")
 elif page == "Scenario Simulator":
     st.subheader("Scenario simulator")
     st.caption("Explore a hypothetical sensitivity scenario. This changes selected inputs in the project heuristic; it is not a forecast.")
