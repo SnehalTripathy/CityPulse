@@ -27,6 +27,14 @@ from analytics.spatial_interpolation import interpolate_station_surface
 from ingestion.landsat_uhi import fetch_landsat_surface_temperature_analysis
 from analytics.urban_stress import calculate_urban_stress
 from analytics.scenario import build_scenario_weather
+from analytics.alerts import DEFAULT_ALERT_THRESHOLDS, build_alert_assessment
+from analytics.exposure import build_pollution_event_features
+from ingestion.worldpop import (
+    DEFAULT_YEAR as WORLDPOP_DEFAULT_YEAR,
+    fetch_population_context,
+    fetch_population_raster,
+    fetch_worldpop_event_exposure,
+)
 from ml.anomaly import detect_recent_weather_anomaly
 from ml.forecasting import train_next_observation_model
 from utils.storage import ensure_data_dirs, load_observations, load_daily_observations
@@ -172,7 +180,7 @@ def _open_zone_intelligence():
 
 page = st.sidebar.radio(
     "Workspace",
-    ["Command Center", "City Comparison", "Air Quality Intelligence", "Environmental Analytics", "Predictive Intelligence", "Anomaly Detection", "Zone Intelligence", "Scenario Simulator", "Methodology"],
+    ["Command Center", "City Comparison", "Air Quality Intelligence", "Environmental Analytics", "Predictive Intelligence", "Anomaly Detection", "Zone Intelligence", "Environmental Health & Exposure", "Smart Alerts & Recommendations", "Scenario Simulator", "Methodology"],
     key="workspace_page",
 )
 st.sidebar.divider()
@@ -206,6 +214,22 @@ def load_landsat_analysis(lat: float, lon: float):
 @st.cache_data(ttl=43200, show_spinner=False)
 def load_land_surface_temperature(lat: float, lon: float):
     return fetch_nasa_land_surface_temperature(lat, lon)
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_worldpop_context(lat: float, lon: float, year: int):
+    return fetch_population_context(lat, lon, year)
+
+
+@st.cache_data(ttl=604800, show_spinner=False)
+def load_worldpop_raster(lat: float, lon: float, year: int):
+    return fetch_population_raster(lat, lon, year, radius_km=10.0)
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_worldpop_exposure(geometry: dict, radius_km: float, year: int, features: dict | None = None):
+    return fetch_worldpop_event_exposure(
+        geometry, radius_km=radius_km, year=year, features=features
+    )
 
 def get_forward_hours(frame: pd.DataFrame, current: dict, count: int) -> pd.DataFrame:
     if frame.empty or "time" not in frame.columns:
@@ -1050,6 +1074,255 @@ elif page == "Scenario Simulator":
                 st.caption(f"Change in project index: {projected['index'] - baseline['index']:+.1f} points. This is a sensitivity calculation using the documented heuristic, not a prediction of actual city conditions.")
     else:
         st.info("Current weather inputs are unavailable, so the scenario cannot be calculated.")
+
+elif page == "Environmental Health & Exposure":
+    st.subheader("Environmental health & population exposure")
+    st.caption("Population context from WorldPop Global2. CityPulse uses a 10 km geometric buffer around the configured city-centre point; it is not a municipal boundary or a census count.")
+    pop_year = st.selectbox("WorldPop population estimate year", [2025, 2024, 2023], index=0, key="worldpop_year")
+    st.markdown("[WorldPop Global2 API and data documentation](https://api.worldpop.org/v3/documentation) · [WorldPop data citation](https://hub.worldpop.org/doi/10.5258/SOTON/WP00839) · [CC BY 4.0 licence](https://creativecommons.org/licenses/by/4.0/)")
+    try:
+        with st.spinner("Loading population estimates and demographic groups from WorldPop…"):
+            population_context = load_worldpop_context(
+                city["latitude"], city["longitude"], int(pop_year)
+            )
+        pop_cols = st.columns(3)
+        total_pop = population_context.get("total_population_10km")
+        density = population_context.get("population_density_km2")
+        area = population_context.get("area_km2")
+        pop_cols[0].metric("Estimated population · 10 km", f"{total_pop:,.0f}" if total_pop is not None else "Unavailable")
+        pop_cols[1].metric("Estimated density", f"{density:,.0f} people/km²" if density is not None else "Unavailable")
+        pop_cols[2].metric("Buffer area", f"{area:,.1f} km²" if area is not None else "Unavailable")
+        st.caption(
+            f"Dataset: {population_context.get('data_source', 'WorldPop Global2')} · "
+            f"data year {population_context.get('data_year', pop_year)} · "
+            f"{population_context.get('licence', 'CC BY 4.0')}. Estimates are gridded modelled population, not a live population count."
+        )
+
+        st.markdown("### Population distribution by distance from city centre")
+        rings = pd.DataFrame(population_context.get("rings", []))
+        if not rings.empty:
+            rings = rings.rename(columns={
+                "from_km":"From (km)",
+                "to_km":"To (km)",
+                "population":"Population in ring",
+                "cumulative":"Cumulative population",
+            })
+            st.dataframe(
+                rings.style.format({
+                    "From (km)":"{:.0f}",
+                    "To (km)":"{:.0f}",
+                    "Population in ring":"{:,.0f}",
+                    "Cumulative population":"{:,.0f}",
+                }),
+                use_container_width=True,
+                hide_index=True,
+            )
+            ring_chart = rings.copy()
+            ring_chart["Distance band"] = ring_chart.apply(
+                lambda row: f"{row['From (km)']:.0f}–{row['To (km)']:.0f} km", axis=1
+            )
+            fig = px.bar(
+                ring_chart, x="Distance band", y="Population in ring",
+                template="plotly_dark", color="Population in ring",
+                color_continuous_scale="Turbo",
+            )
+            fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238", coloraxis_showscale=False)
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("### Demographic context")
+        groups = population_context.get("demographic_groups", {})
+        demographic_rows = []
+        for key, label in [
+            ("under_5", "Children under 5"),
+            ("age_65_plus", "Adults aged 65+"),
+            ("age_15_64", "Population aged 15–64"),
+        ]:
+            value = groups.get(key, {})
+            count = value.get("population")
+            share = value.get("share")
+            if count is not None and pd.notna(count):
+                demographic_rows.append({
+                    "Group": label,
+                    "Estimated population": float(count),
+                    "Share of 10 km population": float(share) if share is not None and pd.notna(share) else None,
+                })
+        if demographic_rows:
+            demographic_frame = pd.DataFrame(demographic_rows)
+            st.dataframe(
+                demographic_frame.style.format({
+                    "Estimated population":"{:,.0f}",
+                    "Share of 10 km population":"{:.1%}",
+                }, na_rep="—"),
+                use_container_width=True,
+                hide_index=True,
+            )
+        st.info("Age-group counts are demographic context only. Children under 5 and adults 65+ are not converted into a heat-vulnerability score; vulnerability also depends on health, housing, income, occupation, cooling access and other local factors.")
+
+        if st.checkbox("Load 1 km population distribution overlay", value=False, key="worldpop_load_raster"):
+            try:
+                with st.spinner("Loading WorldPop 1 km population grid…"):
+                    population_grid = load_worldpop_raster(
+                        city["latitude"], city["longitude"], int(pop_year)
+                    )
+                if population_grid.empty:
+                    st.info("WorldPop returned no inhabited 1 km cells for this buffer.")
+                else:
+                    fig = px.scatter_mapbox(
+                        population_grid,
+                        lat="latitude",
+                        lon="longitude",
+                        color="population_per_cell",
+                        size="population_per_cell",
+                        size_max=18,
+                        color_continuous_scale="Turbo",
+                        zoom=9,
+                        height=560,
+                        hover_data={"population_per_cell":":,.0f","latitude":":.4f","longitude":":.4f"},
+                        labels={"population_per_cell":"Estimated people per 1 km cell"},
+                    )
+                    fig.update_layout(
+                        mapbox_style="carto-darkmatter",
+                        mapbox_center={"lat":city["latitude"],"lon":city["longitude"]},
+                        paper_bgcolor="#0B1220",
+                        margin={"l":0,"r":0,"t":10,"b":0},
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.caption("Each marker is a WorldPop 1 km grid-cell centre; circle size and colour reflect estimated people per cell. This is a population distribution layer, not a heat or pollution surface.")
+            except Exception as exc:
+                st.warning(f"WorldPop population grid is temporarily unavailable: {exc}")
+    except Exception as exc:
+        population_context = None
+        st.warning(f"WorldPop population context is temporarily unavailable: {exc}")
+
+    st.divider()
+    st.markdown("### Population near a current elevated environmental signal")
+    st.caption("Distance-weighted population proximity estimates use WorldPop's documented method. They are not a measured count of affected people or a health-impact estimate.")
+    exposure_kind = st.selectbox(
+        "Environmental signal",
+        ["Current heat condition at city-centre grid point", "PM2.5 above configured trigger at monitoring stations", "PM10 above configured trigger at monitoring stations"],
+        key="worldpop_exposure_kind",
+    )
+    exposure_radius = st.slider(
+        "Population proximity radius (km)", 1.0, 10.0,
+        5.0 if exposure_kind.startswith("Current heat") else 2.0,
+        0.5, key="worldpop_exposure_radius",
+    )
+    heat_limit = float(st.session_state.get("alert_heat_threshold", DEFAULT_ALERT_THRESHOLDS["heat_c"]))
+    pm25_limit = float(st.session_state.get("alert_pm25_threshold", DEFAULT_ALERT_THRESHOLDS["pm25_ug_m3"]))
+    pm10_limit = float(st.session_state.get("alert_pm10_threshold", DEFAULT_ALERT_THRESHOLDS["pm10_ug_m3"]))
+    st.caption(
+        f"Current thresholds used: heat {heat_limit:.1f} °C · "
+        f"PM2.5 {pm25_limit:.0f} µg/m³ · PM10 {pm10_limit:.0f} µg/m³. "
+        "These are the session's prototype trigger settings, not official warning thresholds."
+    )
+    if st.button("Estimate nearby population", type="primary", key="run_worldpop_exposure"):
+        try:
+            event_geometry = {}
+            event_features = None
+            event_description = ""
+            event_radius = float(exposure_radius)
+            if exposure_kind.startswith("Current heat"):
+                current_heat = pd.to_numeric(weather_current.get("apparent_temperature"), errors="coerce")
+                if pd.isna(current_heat) or float(current_heat) < heat_limit:
+                    st.info("The current Open-Meteo modelled apparent temperature does not cross the configured heat trigger. No heat exposure estimate was requested.")
+                else:
+                    event_geometry = {
+                        "type":"Point",
+                        "coordinates":[float(city["longitude"]), float(city["latitude"])],
+                    }
+                    event_description = f"Current modelled apparent temperature {float(current_heat):.1f} °C at the city-centre grid point"
+            else:
+                selected_pollutant = "pm25" if "PM2.5" in exposure_kind else "pm10"
+                selected_limit = pm25_limit if selected_pollutant == "pm25" else pm10_limit
+                event_features = build_pollution_event_features(
+                    air, selected_pollutant, selected_limit, max_age_hours=24
+                )
+                if not event_features["features"]:
+                    st.info(f"No eligible fixed station with a reading above {selected_limit:.0f} µg/m³ was found in the last 24 hours. No population estimate was requested.")
+                else:
+                    event_description = (
+                        f"{len(event_features['features'])} fixed {selected_pollutant.upper()} station(s) "
+                        f"above {selected_limit:.0f} µg/m³"
+                    )
+            should_estimate = bool(event_geometry) or (event_features is not None and bool(event_features.get("features")))
+            if should_estimate:
+                worldpop_year = int(st.session_state.get("worldpop_year", WORLDPOP_DEFAULT_YEAR))
+                with st.spinner("Estimating nearby population using WorldPop…"):
+                    exposure = load_worldpop_exposure(
+                        event_geometry, float(event_radius), worldpop_year,
+                        event_features,
+                    )
+                st.caption(event_description)
+                exposure_cols = st.columns(2)
+                exposure_cols[0].metric("Distance-weighted population estimate", f"{exposure['exposed_population']:,.0f}")
+                exposure_cols[1].metric("Population within radius", f"{exposure['population_within']:,.0f}" if exposure.get("population_within") is not None else "Unavailable")
+                st.caption(
+                    f"WorldPop data year {exposure['data_year']} · radius {exposure['radius_km']:.1f} km · "
+                    "WorldPop distance-decay weighting (p=1). For several monitoring sites, each person is assigned to the nearest feature to avoid double counting."
+                )
+                exposure_rings = pd.DataFrame(exposure.get("rings", []))
+                if not exposure_rings.empty:
+                    st.dataframe(exposure_rings, use_container_width=True, hide_index=True)
+                st.warning("This estimates population near the supplied point(s) using a distance-decay model. It does not establish that every person in the area experienced the same conditions, that the conditions caused harm, or that the modelled population distribution matches a current census.")
+        except Exception as exc:
+            st.warning(f"WorldPop exposure estimation is temporarily unavailable: {exc}")
+
+elif page == "Smart Alerts & Recommendations":
+    st.subheader("Smart alerts & recommendations")
+    st.caption("Configure prototype triggers for current provider conditions, hourly forecasts and recent fixed-station readings. These are not official warnings or regulatory AQI categories.")
+    threshold_cols = st.columns(2)
+    with threshold_cols[0]:
+        heat_threshold = st.slider(
+            "Apparent temperature trigger (°C)", 30.0, 50.0,
+            float(st.session_state.get("alert_heat_threshold", DEFAULT_ALERT_THRESHOLDS["heat_c"])),
+            0.5, key="alert_heat_threshold",
+        )
+        rainfall_threshold = st.slider(
+            "Hourly precipitation trigger (mm)", 1.0, 80.0,
+            float(st.session_state.get("alert_rainfall_threshold", DEFAULT_ALERT_THRESHOLDS["rainfall_mm"])),
+            1.0, key="alert_rainfall_threshold",
+        )
+    with threshold_cols[1]:
+        pm25_threshold = st.slider(
+            "PM2.5 trigger (µg/m³)", 10.0, 250.0,
+            float(st.session_state.get("alert_pm25_threshold", DEFAULT_ALERT_THRESHOLDS["pm25_ug_m3"])),
+            5.0, key="alert_pm25_threshold",
+        )
+        pm10_threshold = st.slider(
+            "PM10 trigger (µg/m³)", 10.0, 400.0,
+            float(st.session_state.get("alert_pm10_threshold", DEFAULT_ALERT_THRESHOLDS["pm10_ug_m3"])),
+            5.0, key="alert_pm10_threshold",
+        )
+    thresholds = {
+        "heat_c":heat_threshold,
+        "rainfall_mm":rainfall_threshold,
+        "pm25_ug_m3":pm25_threshold,
+        "pm10_ug_m3":pm10_threshold,
+    }
+    assessment = build_alert_assessment(weather_current, weather, air, thresholds)
+    st.divider()
+    st.markdown("### Trigger assessment")
+    if assessment["alerts"].empty:
+        st.info("No configured thresholds are crossed by the currently available inputs. This does not mean conditions are risk-free.")
+    else:
+        st.warning(f"{len(assessment['alerts'])} configured trigger(s) crossed in the available data.")
+        st.dataframe(
+            assessment["alerts"].style.format({
+                "Value":"{:.1f}",
+                "Configured threshold":"{:.1f}",
+            }),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.markdown("### Recommended next steps")
+        for recommendation in assessment["recommendations"]:
+            st.markdown(f"**{recommendation['signal']}**")
+            st.write(recommendation["text"])
+    with st.expander("Data availability and interpretation", expanded=bool(assessment["unavailable"])):
+        for note in assessment["unavailable"]:
+            st.write(f"• {note}")
+        st.caption("Weather conditions and forecasts are Open-Meteo modelled grid-cell data. PM medians use the latest eligible fixed OpenAQ station values no more than 24 hours old, normalized to µg/m³. Missing, stale, incompatible and mobile readings do not trigger a PM alert.")
+    st.caption("Thresholds are adjustable for this browser session only. Alerts are recalculated when the page refreshes; no email, SMS or push notifications are sent. Rainfall forecast triggers use the largest single preceding-hour accumulation, not a flood forecast.")
 
 else:
     st.subheader("Methodology & data notes")
