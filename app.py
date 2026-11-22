@@ -319,6 +319,7 @@ if page == "City Comparison":
                     chart_data, x="date", y="value", color="city", markers=True,
                     hover_data=["reading_count", "station_count"], template="plotly_dark",
                     labels={"date":"UTC date", "value":trend_metric, "city":"City"},
+                    connectgaps=False,
                 )
                 fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238", legend_title_text="City")
                 st.plotly_chart(fig, use_container_width=True)
