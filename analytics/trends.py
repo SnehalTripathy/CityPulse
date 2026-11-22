@@ -83,8 +83,12 @@ def build_city_trend_frame(
         return empty_trend, empty_coverage
 
     frame["date"] = frame["datetime_utc"].dt.floor("D")
-    station_key = "station" if "station" in frame.columns else "_station"
-    if station_key == "_station":
+    station_key = "_station_key"
+    if specification["source"] == "openaq" and "location_id" in frame.columns:
+        frame[station_key] = frame["location_id"].where(frame["location_id"].notna(), frame["station"])
+    elif "station" in frame.columns:
+        frame[station_key] = frame["station"]
+    else:
         frame[station_key] = frame["city"]
     # For air quality, first summarize repeated reports per station/day, then
     # summarize across stations. For weather, daily median is the grid-cell series.
