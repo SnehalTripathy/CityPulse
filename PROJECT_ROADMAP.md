@@ -20,7 +20,7 @@ This is the working project checklist. Check an item only after implementation a
   - [x] Show pollutant availability, observation timestamps and fair-comparison caveats
   - [x] Add multi-city daily trend comparison with shared UTC windows, stable station IDs, PM unit normalization, pollutant-specific observation ages and a minimum common-history gate
   - [x] Build and commit a compressed 365-day station/day archive in the scheduled collector
-  - [ ] Confirm the first scheduled archive run and accumulate at least three shared observed UTC days in two or more cities (data-dependent)
+  - [ ] Confirm the first scheduled archive run and accumulate at least three shared observed UTC days in two or more cities (data-dependent; raw and processed archive files are still absent from main)
 - [x] **2. Advanced Zone Intelligence — station coverage, validated spatial estimates, satellite surface-temperature analysis and park access delivered with explicit data limits**
   - [x] Interactive station map with pollutant-aware detail and station selection
   - [x] Show fixed/mobile station distribution, a 5 km returned-sample coverage grid, timestamp quality, freshness, source/owner/license provenance and the OpenAQ query footprint; empty cells do not prove no monitor exists
@@ -50,9 +50,9 @@ This is the working project checklist. Check an item only after implementation a
 ## Phase 1 — Better intelligence
 - [x] Normalize pollutant aliases and comparable PM concentration units for city comparison, daily trends and the experimental CityPulse Index
 - [x] Display pollutant-level analytics and time freshness
-- [ ] Separate official AQI values (where an official feed exists) from the experimental CityPulse Index
+- [x] Separate official AQI values (where an official feed exists) from the experimental CityPulse Index; current connected feeds do not supply an official AQI, and the UI labels this explicitly
 - [x] Build daily historical comparison trends on shared UTC windows, retaining stable station IDs and converting compatible PM mass units to µg/m³
-- [ ] Add source provenance and quality indicators to dashboard metrics
+- [x] Add source provenance and quality indicators to dashboard metrics across Command Center, City Comparison, Air Quality Intelligence and Zone Intelligence
 - [x] Add a compressed 365-day station/day archive and scheduled collector upsert; [ ] verify first real remote archive run and multi-city trend population
 
 ## Phase 2 — Geospatial intelligence
@@ -80,6 +80,10 @@ This is the working project checklist. Check an item only after implementation a
 - [ ] Add population exposure / planning insights for policymakers
 - [ ] Add alert preferences and delivery integrations after validation
 
+## Priority 1–2 readiness note
+
+The City Comparison Engine and Advanced Zone Intelligence implementations are code-complete, with 60 automated tests passing. Priority 1 is not release-verified until the scheduled collector creates both remote archives and enough real multi-city dates accumulate. Priority 2 is not live-verified until the deployed station, green-space and Landsat views have been checked against their external providers. These real-data checks must remain open; do not replace them with synthetic observations.
+
 ## Final project closeout
 - [ ] Remove this master checklist (`PROJECT_ROADMAP.md`) from the public GitHub repository after all project features, release checks and documentation are complete.
 
@@ -95,10 +99,11 @@ This is the working project checklist. Check an item only after implementation a
 
 ## Release quality gates
 - [x] No synthetic or silently imputed measurements in new comparison, trend, station-grid, interpolation, cluster, Landsat or OSM workflows; CityPulse Index is withheld when required weather, PM or rainfall inputs are missing
-- [ ] Complete a project-wide audit of remaining legacy dashboard views for silent defaults and imputation
+- [x] Audit legacy dashboard views for silent defaults and imputation; remove the scenario zero-rainfall and placeholder-temperature defaults, fix missing rain-score display, and stop relabelling weather-stress as a heat signal
 - [x] Distinguish modelled grid-cell weather, OpenAQ station measurements, provider forecasts, experimental CityPulse outputs and spatial estimates in the new comparison/zone views
 - [x] Show timestamps, units, source provenance, station-age ranges and missing/future-data states in comparison and zone views
 - [x] Confirm city timezone handling for every country (all registry timezones validated and passed to weather requests)
-- [x] Automated tests pass (56 tests passed in GitHub Actions)
+- [x] Automated tests pass (60 tests passed in GitHub Actions; latest completed verified run 45041127349)
 - [x] README accurately describes released features and limitations
 - [ ] Streamlit deployment successfully starts and core pages render
+- [ ] Verify the live Zone Intelligence provider-backed layers after deployment; external OpenStreetMap/ESA/Landsat service availability is not covered by CI
