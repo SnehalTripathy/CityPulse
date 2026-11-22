@@ -21,12 +21,12 @@ WEATHER_PARAMETERS = {
     "wind_speed_10m": "km/h",
 }
 COLUMNS = [
-    "source", "city", "station", "sensor_id", "parameter", "value", "unit",
+    "source", "city", "station", "location_id", "sensor_id", "parameter", "value", "unit",
     "datetime_utc", "observed_at_utc", "latitude", "longitude",
     "is_mobile", "is_monitor", "timezone", "provider", "owner", "licenses",
 ]
 DAILY_COLUMNS = [
-    "source", "city", "station", "parameter", "unit", "date", "median_value",
+    "source", "city", "station", "location_id", "parameter", "unit", "date", "median_value",
     "reading_count", "first_utc", "last_utc", "latitude", "longitude",
     "is_mobile", "is_monitor", "provider", "owner", "timezone", "licenses",
 ]
@@ -59,6 +59,7 @@ def collect_snapshot(api_key: str | None = None) -> pd.DataFrame:
                     "source": "open-meteo",
                     "city": city_name,
                     "station": f"{city_name} model grid",
+                    "location_id": None,
                     "sensor_id": "open-meteo-current",
                     "parameter": parameter,
                     "value": value,
@@ -96,6 +97,7 @@ def collect_snapshot(api_key: str | None = None) -> pd.DataFrame:
                     "source": "openaq",
                     "city": city_name,
                     "station": measurement.get("station"),
+                    "location_id": measurement.get("location_id"),
                     "sensor_id": measurement.get("sensor_id"),
                     "parameter": measurement.get("parameter"),
                     "value": measurement.get("value"),
@@ -142,7 +144,7 @@ def build_daily_observation_summary(observations: pd.DataFrame) -> pd.DataFrame:
         if column in frame.columns:
             aggregations[column] = (column, "first")
     result = frame.groupby(
-        ["source", "city", "station", "parameter", "unit", "date"],
+        ["source", "city", "station", "location_id", "parameter", "unit", "date"],
         dropna=False,
     ).agg(**aggregations).reset_index()
     for column in DAILY_COLUMNS:
@@ -203,7 +205,7 @@ def append_snapshot(snapshot: pd.DataFrame, path: str | Path) -> int:
 
     update_daily_observation_archive(combined, destination.parent.parent / "processed" / "daily_city_observations.csv")
     combined = combined.drop_duplicates(
-        subset=["source", "city", "station", "sensor_id", "parameter", "datetime_utc"],
+        subset=["source", "city", "location_id", "station", "sensor_id", "parameter", "datetime_utc"],
         keep="last",
     )
     combined = combined.sort_values(["datetime_utc", "source", "station"], na_position="last")
