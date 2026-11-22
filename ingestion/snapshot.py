@@ -37,60 +37,59 @@ def _local_timestamp_to_utc(value: str | None, timezone_name: str) -> str:
 
 def collect_snapshot(api_key: str | None = None) -> pd.DataFrame:
     """Collect one normalized snapshot of weather and nearby air sensor readings."""
-    city_name = "Bengaluru"
-    city = CITIES[city_name]
     observed_at = datetime.now(timezone.utc).isoformat()
     rows: list[dict] = []
 
-    weather = fetch_forecast(city["latitude"], city["longitude"])
-    current = weather.attrs.get("current", {}) or {}
-    weather_time = _local_timestamp_to_utc(current.get("time"), city["timezone"])
-    for parameter, unit in WEATHER_PARAMETERS.items():
-        value = current.get(parameter)
-        if value is None:
-            continue
-        rows.append({
-            "source": "open-meteo",
-            "city": city_name,
-            "station": "Bengaluru model grid",
-            "sensor_id": "open-meteo-current",
-            "parameter": parameter,
-            "value": value,
-            "unit": unit,
-            "datetime_utc": weather_time,
-            "observed_at_utc": observed_at,
-            "latitude": city["latitude"],
-            "longitude": city["longitude"],
-        })
-
-    if api_key:
-        try:
-            air = fetch_latest_measurements(city["latitude"], city["longitude"], api_key)
-        except Exception as exc:
-            logger.warning("OpenAQ snapshot failed; retaining weather rows: %s", exc)
-            air = pd.DataFrame()
-        for measurement in air.to_dict(orient="records"):
-            stamp = measurement.get("datetime_utc")
-            if stamp is not None and not pd.isna(stamp):
-                timestamp_utc = pd.Timestamp(stamp)
-                if timestamp_utc.tzinfo is None:
-                    timestamp_utc = timestamp_utc.tz_localize("UTC")
-                timestamp_utc = timestamp_utc.tz_convert("UTC").isoformat()
-            else:
-                timestamp_utc = ""
+    for city_name, city in CITIES.items():
+        weather = fetch_forecast(city["latitude"], city["longitude"])
+        current = weather.attrs.get("current", {}) or {}
+        weather_time = _local_timestamp_to_utc(current.get("time"), city["timezone"])
+        for parameter, unit in WEATHER_PARAMETERS.items():
+            value = current.get(parameter)
+            if value is None:
+                continue
             rows.append({
-                "source": "openaq",
+                "source": "open-meteo",
                 "city": city_name,
-                "station": measurement.get("station"),
-                "sensor_id": measurement.get("sensor_id"),
-                "parameter": measurement.get("parameter"),
-                "value": measurement.get("value"),
-                "unit": measurement.get("unit"),
-                "datetime_utc": timestamp_utc,
+                "station": f"{city_name} model grid",
+                "sensor_id": "open-meteo-current",
+                "parameter": parameter,
+                "value": value,
+                "unit": unit,
+                "datetime_utc": weather_time,
                 "observed_at_utc": observed_at,
-                "latitude": measurement.get("latitude"),
-                "longitude": measurement.get("longitude"),
+                "latitude": city["latitude"],
+                "longitude": city["longitude"],
             })
+
+        if api_key:
+            try:
+                air = fetch_latest_measurements(city["latitude"], city["longitude"], api_key)
+            except Exception as exc:
+                logger.warning("OpenAQ snapshot failed for %s; retaining weather rows: %s", city_name, exc)
+                air = pd.DataFrame()
+            for measurement in air.to_dict(orient="records"):
+                stamp = measurement.get("datetime_utc")
+                if stamp is not None and not pd.isna(stamp):
+                    timestamp_utc = pd.Timestamp(stamp)
+                    if timestamp_utc.tzinfo is None:
+                        timestamp_utc = timestamp_utc.tz_localize("UTC")
+                    timestamp_utc = timestamp_utc.tz_convert("UTC").isoformat()
+                else:
+                    timestamp_utc = ""
+                rows.append({
+                    "source": "openaq",
+                    "city": city_name,
+                    "station": measurement.get("station"),
+                    "sensor_id": measurement.get("sensor_id"),
+                    "parameter": measurement.get("parameter"),
+                    "value": measurement.get("value"),
+                    "unit": measurement.get("unit"),
+                    "datetime_utc": timestamp_utc,
+                    "observed_at_utc": observed_at,
+                    "latitude": measurement.get("latitude"),
+                    "longitude": measurement.get("longitude"),
+                })
 
     return pd.DataFrame(rows, columns=COLUMNS)
 
