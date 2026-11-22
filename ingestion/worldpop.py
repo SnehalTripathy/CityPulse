@@ -128,15 +128,21 @@ def fetch_population_context(
                 "share": pd.to_numeric(item.get("share"), errors="coerce"),
             }
 
+    area_km2 = float(groups.get("area_km2")) if groups.get("area_km2") is not None else None
+    total_population = float(groups.get("total_population")) if groups.get("total_population") is not None else None
+    reported_density = pd.to_numeric(groups.get("population_density"), errors="coerce")
+    if pd.isna(reported_density) and area_km2 and area_km2 > 0 and total_population is not None:
+        reported_density = total_population / area_km2
+
     return {
         "city_centre": {"latitude": float(latitude), "longitude": float(longitude)},
         "data_year": int(groups.get("data_year", catchment.get("data_year", selected_year))),
-        "data_source": str(groups.get("data_source") or catchment.get("data_source") or "WorldPop Global2"),
+        "data_source": str(groups.get("data_source") or catchment.get("data_source") or "WorldPop Global2 R2025A, 100 m"),
         "release": "WorldPop Global2 R2025A",
         "licence": "CC BY 4.0",
-        "area_km2": float(groups.get("area_km2")) if groups.get("area_km2") is not None else None,
-        "total_population_10km": float(groups.get("total_population")) if groups.get("total_population") is not None else None,
-        "population_density_km2": float(groups.get("population_density")) if groups.get("population_density") is not None else None,
+        "area_km2": area_km2,
+        "total_population_10km": total_population,
+        "population_density_km2": float(reported_density) if pd.notna(reported_density) else None,
         "rings": [
             {
                 "from_km": float(item.get("from_km", 0)),
