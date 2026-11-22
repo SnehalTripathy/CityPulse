@@ -55,6 +55,36 @@ st.set_page_config(
 
 ensure_data_dirs()
 
+def _streamlit_smtp_settings() -> dict:
+    """Read SMTP secrets without requiring them to be copied into process env vars."""
+    setting_names = (
+        "CITYPULSE_SMTP_HOST", "CITYPULSE_SMTP_PORT",
+        "CITYPULSE_SMTP_FROM", "CITYPULSE_ALERT_EMAIL",
+        "CITYPULSE_SMTP_USERNAME", "CITYPULSE_SMTP_PASSWORD",
+    )
+    try:
+        secret_root = st.secrets
+        smtp_section = secret_root.get("smtp", {})
+    except Exception:
+        secret_root, smtp_section = {}, {}
+    settings = {}
+    for name in setting_names:
+        value = None
+        try:
+            value = secret_root.get(name)
+        except Exception:
+            pass
+        if value is None:
+            short_name = name.removeprefix("CITYPULSE_")
+            try:
+                value = smtp_section.get(name) or smtp_section.get(short_name)
+            except Exception:
+                pass
+        if value is not None:
+            settings[name] = str(value)
+    return settings
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def load_history() -> pd.DataFrame:
     """Load local detailed history, with a shared GitHub fallback."""
@@ -1647,20 +1677,45 @@ elif page == "Smart Alerts & Recommendations":
     except Exception as exc:
         saved_preferences = {**DEFAULT_ALERT_THRESHOLDS, "email_enabled": False}
         st.warning(f"Persistent alert settings are unavailable; defaults are being used. Details: {exc}")
-    for key, preference_key in [
+    # Widget keys are city-scoped so selecting a different city restores that city's
+    # saved settings rather than inheriting the prior city's browser-session sliders.
+    city_widget_key = city_name.lower().replace(" ", "_").replace("/", "_")
+    widget_preferences = [
         ("alert_heat_threshold", "heat_c"),
         ("alert_rainfall_threshold", "rainfall_mm"),
         ("alert_pm25_threshold", "pm25_ug_m3"),
         ("alert_pm10_threshold", "pm10_ug_m3"),
-    ]:
-        st.session_state.setdefault(key, float(saved_preferences.get(preference_key, DEFAULT_ALERT_THRESHOLDS[preference_key])))
+    ]
+    for key, preference_key in widget_preferences:
+        scoped_key = f"{key}_{city_widget_key}"
+        st.session_state.setdefault(
+            scoped_key,
+            float(saved_preferences.get(preference_key, DEFAULT_ALERT_THRESHOLDS[preference_key])),
+        )
     threshold_cols = st.columns(2)
     with threshold_cols[0]:
-        heat_threshold = st.slider("Apparent temperature trigger (°C)", 30.0, 50.0, float(st.session_state["alert_heat_threshold"]), 0.5, key="alert_heat_threshold")
-        rainfall_threshold = st.slider("Hourly precipitation trigger (mm)", 1.0, 80.0, float(st.session_state["alert_rainfall_threshold"]), 1.0, key="alert_rainfall_threshold")
+        heat_threshold = st.slider(
+            "Apparent temperature trigger (°C)", 30.0, 50.0,
+            step=0.5, key=f"alert_heat_threshold_{city_widget_key}",
+        )
+        rainfall_threshold = st.slider(
+            "Hourly precipitation trigger (mm)", 1.0, 80.0,
+            step=1.0, key=f"alert_rainfall_threshold_{city_widget_key}",
+        )
     with threshold_cols[1]:
-        pm25_threshold = st.slider("PM2.5 trigger (µg/m³)", 10.0, 250.0, float(st.session_state["alert_pm25_threshold"]), 5.0, key="alert_pm25_threshold")
-        pm10_threshold = st.slider("PM10 trigger (µg/m³)", 10.0, 400.0, float(st.session_state["alert_pm10_threshold"]), 5.0, key="alert_pm10_threshold")
+        pm25_threshold = st.slider(
+            "PM2.5 trigger (µg/m³)", 10.0, 250.0,
+            step=5.0, key=f"alert_pm25_threshold_{city_widget_key}",
+        )
+        pm10_threshold = st.slider(
+            "PM10 trigger (µg/m³)", 10.0, 400.0,
+            step=5.0, key=f"alert_pm10_threshold_{city_widget_key}",
+        )
+    # Keep compatibility aliases for the exposure page's current-threshold display.
+    st.session_state["alert_heat_threshold"] = heat_threshold
+    st.session_state["alert_rainfall_threshold"] = rainfall_threshold
+    st.session_state["alert_pm25_threshold"] = pm25_threshold
+    st.session_state["alert_pm10_threshold"] = pm10_threshold
     email_enabled = st.checkbox(
         "Enable email notifications for newly recorded alerts",
         value=bool(saved_preferences.get("email_enabled", False)),
@@ -1674,8 +1729,9 @@ elif page == "Smart Alerts & Recommendations":
             st.success(f"Alert preferences saved for {city_name}.")
         except Exception as exc:
             st.error(f"Could not save alert preferences: {exc}")
-    if email_enabled and not email_delivery_configured():
-        st.warning("Email delivery is not configured. Set CITYPULSE_SMTP_HOST, CITYPULSE_SMTP_PORT, CITYPULSE_SMTP_FROM and CITYPULSE_ALERT_EMAIL; optionally set CITYPULSE_SMTP_USERNAME and CITYPULSE_SMTP_PASSWORD.")
+    smtp_settings = _streamlit_smtp_settings()
+    if email_enabled and not email_delivery_configured(smtp_settings):
+        st.warning("Email delivery is not configured correctly. Set the SMTP host, port, sender and recipient in Streamlit Secrets or environment variables; authentication username and password must be supplied together.")
     elif email_enabled:
         st.caption("Email delivery is configured for the deployment administrator address.")
     assessment = build_alert_assessment(weather_current, weather, air, thresholds)
@@ -1685,7 +1741,7 @@ elif page == "Smart Alerts & Recommendations":
         newly_recorded = []
         st.warning(f"Durable alert history is unavailable. Details: {exc}")
     if newly_recorded and email_enabled:
-        sent, delivery_error = send_alert_email(city_name, newly_recorded)
+        sent, delivery_error = send_alert_email(city_name, newly_recorded, smtp_settings)
         for alert in newly_recorded:
             try:
                 mark_notification(alert["fingerprint"], "sent" if sent else "failed", delivery_error)
