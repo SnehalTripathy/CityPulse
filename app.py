@@ -19,7 +19,10 @@ from analytics.comparison import build_city_comparison_record
 from analytics.trends import TREND_METRICS, build_city_trend_frame
 from analytics.zone_intelligence import build_zone_coverage, detect_observed_hotspot_clusters
 from analytics.zone_grid import build_zone_coverage_grid
-from ingestion.geo_layers import fetch_green_spaces
+from ingestion.geo_layers import (
+    fetch_green_spaces, fetch_walking_park_access,
+    fetch_nasa_land_surface_temperature, fetch_esa_worldcover,
+)
 from analytics.spatial_interpolation import interpolate_station_surface
 from ingestion.landsat_uhi import fetch_landsat_surface_temperature_analysis
 from analytics.urban_stress import calculate_urban_stress
@@ -187,9 +190,21 @@ def load_air(lat: float, lon: float, key: str | None) -> pd.DataFrame:
 def load_green_spaces(lat: float, lon: float) -> pd.DataFrame:
     return fetch_green_spaces(lat, lon)
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_walking_access(lat: float, lon: float, green: pd.DataFrame):
+    return fetch_walking_park_access(lat, lon, green)
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_worldcover(lat: float, lon: float) -> bytes:
+    return fetch_esa_worldcover(lat, lon)
+
 @st.cache_data(ttl=604800, show_spinner=False)
 def load_landsat_analysis(lat: float, lon: float):
     return fetch_landsat_surface_temperature_analysis(lat, lon)
+
+@st.cache_data(ttl=43200, show_spinner=False)
+def load_land_surface_temperature(lat: float, lon: float):
+    return fetch_nasa_land_surface_temperature(lat, lon)
 
 def get_forward_hours(frame: pd.DataFrame, current: dict, count: int) -> pd.DataFrame:
     if frame.empty or "time" not in frame.columns:
@@ -845,7 +860,35 @@ elif page == "Zone Intelligence":
             use_container_width=True, hide_index=True,
         )
         st.caption("OpenStreetMap is community-mapped (© OpenStreetMap contributors). Straight-line distances are measured to mapped feature centres; they are not walking routes or verified entrances. [Map data attribution](https://www.openstreetmap.org/copyright).")
-        st.caption("Only mapped-feature proximity is shown. Network walking routes were removed because they depended on a second high-volume external map query and could imply incomplete citywide access.")
+        if st.checkbox("Estimate walk-network access to mapped green spaces", value=False, key="zone_walk_access"):
+            try:
+                with st.spinner("Calculating approximate walking-network access…"):
+                    walking_access, walking_summary = load_walking_access(
+                        city["latitude"], city["longitude"], green_spaces
+                    )
+                if walking_summary.get("status") == "ready":
+                    walk_cols = st.columns(3)
+                    walk_cols[0].metric("Parks with estimated walk route", f"{walking_summary['routed_green_spaces']:,}")
+                    walk_cols[1].metric("Walk-network nodes", f"{walking_summary['network_nodes']:,}")
+                    walk_cols[2].metric("Origin snap distance", f"{walking_summary['origin_snap_distance_m']:.0f} m")
+                    st.dataframe(
+                        walking_access.style.format({
+                            "straight_line_km":"{:.2f}",
+                            "walking_network_km":"{:.2f}",
+                            "estimated_walk_minutes":"{:.1f}",
+                            "park_snap_distance_m":"{:.0f}",
+                        }),
+                        use_container_width=True, hide_index=True,
+                    )
+                    st.caption(
+                        f"Walking time uses an assumed pace of {walking_summary['assumed_walking_speed_kmh']:.1f} km/h. "
+                        "The route endpoint is the nearest mapped walk-network node to a green-space feature centre, not a verified public entrance. "
+                        "This is a bounded OSM network sample, not a complete citywide pedestrian-accessibility assessment."
+                    )
+                else:
+                    st.info(f"Walking access could not be estimated from the returned network: {walking_summary.get('status')}.")
+            except Exception as exc:
+                st.warning(f"OpenStreetMap walking-network lookup is temporarily unavailable: {exc}")
 
     st.markdown("### Landsat surface-temperature contrast")
     st.caption("CityPulse searches recent Landsat Collection 2 Level-2 scenes, masks cloud/shadow/snow/fill/water pixels, applies the USGS temperature scale factor and compares measured thermal pixels.")
@@ -959,7 +1002,24 @@ elif page == "Zone Intelligence":
         st.info("Enable the analysis to search for a recent clear Landsat scene. Processing is cached for seven days per city.")
 
     st.markdown("[USGS Landsat Collection 2 surface-temperature product](https://www.usgs.gov/landsat-missions/landsat-collection-2-surface-temperature) · [Microsoft Planetary Computer STAC catalog](https://planetarycomputer.microsoft.com/catalog/dataset/landsat-c2-l2)")
-    st.caption("Green-space context is based on community-mapped OpenStreetMap features. Satellite land-cover overlays were removed because the external map proxy was unreliable.")
+    if st.checkbox("Show NASA MODIS daily temperature context image", value=False, key="zone_load_nasa_lst"):
+        try:
+            with st.spinner("Loading NASA MODIS context imagery…"):
+                lst_image, lst_date = load_land_surface_temperature(city["latitude"], city["longitude"])
+            st.image(lst_image, caption=f"NASA GIBS · MODIS Terra daytime surface temperature · {lst_date}", use_container_width=True)
+        except Exception as exc:
+            st.warning(f"NASA satellite context layer is temporarily unavailable: {exc}")
+
+    st.markdown("### Land-cover classification")
+    st.caption("ESA WorldCover 2021 at 10 m resolution. The classification is a dated reference layer, not a live vegetation monitor.")
+    if st.checkbox("Load ESA WorldCover 2021 layer", value=True, key="zone_load_worldcover"):
+        try:
+            with st.spinner("Loading ESA land-cover classification…"):
+                cover_image = load_worldcover(city["latitude"], city["longitude"])
+            st.image(cover_image, caption="ESA WorldCover 2021 · 10 m land-cover classification", use_container_width=True)
+            st.caption("Classes include tree cover, shrubland, grassland, cropland, built-up, bare/sparse vegetation, water, wetland, mangroves and moss/lichen. [Dataset access and attribution](https://esa-worldcover.org/en/data-access)")
+        except Exception as exc:
+            st.warning(f"ESA WorldCover layer is temporarily unavailable: {exc}")
 elif page == "Scenario Simulator":
     st.subheader("Scenario simulator")
     st.caption("Explore a hypothetical sensitivity scenario. This changes selected inputs in the project heuristic; it is not a forecast.")
