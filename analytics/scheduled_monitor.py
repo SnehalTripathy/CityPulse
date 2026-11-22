@@ -67,28 +67,35 @@ def evaluate_scheduled_city(
         now=now,
     )
     newly_recorded = record_alerts(city, assessment["alerts"], path=state_path)
-    should_email = scheduled_email_enabled() if email_enabled is None else bool(email_enabled)
-    delivery_status = "not_enabled"
-    if newly_recorded and should_email:
-        if not email_delivery_configured():
-            error = "Scheduled email is enabled, but SMTP settings are incomplete or invalid."
-            for event in newly_recorded:
-                mark_notification(event["fingerprint"], "failed", error, path=state_path)
-            delivery_status = "failed"
-        else:
-            sent, error = send_alert_email(city, newly_recorded)
-            for event in newly_recorded:
-                mark_notification(
-                    event["fingerprint"],
-                    "sent" if sent else "failed",
-                    error,
-                    path=state_path,
-                )
-            delivery_status = "sent" if sent else "failed"
     return {
         "city": city,
         "alerts_found": int(len(assessment["alerts"])),
         "new_alerts": int(len(newly_recorded)),
-        "email_status": delivery_status,
+        "new_events": newly_recorded,
         "unavailable": assessment["unavailable"],
     }
+
+
+def deliver_scheduled_alert_batch(
+    events: list[dict],
+    *,
+    state_path: str | Path | None = None,
+    email_enabled: bool | None = None,
+) -> str:
+    """Send one consolidated email per monitoring run, avoiding per-city email bursts."""
+    should_email = scheduled_email_enabled() if email_enabled is None else bool(email_enabled)
+    if not events or not should_email:
+        return "not_enabled"
+    if not email_delivery_configured():
+        error = "Scheduled email is enabled, but SMTP settings are incomplete or invalid."
+        sent = False
+    else:
+        sent, error = send_alert_email("scheduled city monitoring", events)
+    for event in events:
+        mark_notification(
+            event["fingerprint"],
+            "sent" if sent else "failed",
+            error,
+            path=state_path,
+        )
+    return "sent" if sent else "failed"
