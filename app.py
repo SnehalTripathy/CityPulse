@@ -770,10 +770,12 @@ elif page == "Zone Intelligence":
                 scene_cols[1].metric("Clear valid pixels", f"{landsat_info['valid_pixels']:,}")
                 scene_cols[2].metric("Urban proxy pixels", f"{landsat_info['urban_pixels']:,}")
                 scene_cols[3].metric("Vegetated reference pixels", f"{landsat_info['reference_pixels']:,}")
+                cloud_cover = landsat_info.get("cloud_cover_scene_pct")
+                cloud_cover_label = f"{float(cloud_cover):.1f}%" if cloud_cover is not None else "Unavailable"
                 st.caption(
                     f"Urban-core median: {landsat_info['urban_proxy_median_c']:.1f} °C · "
                     f"Vegetated reference median: {landsat_info['vegetated_reference_median_c']:.1f} °C · "
-                    f"Scene-wide cloud estimate: {landsat_info.get('cloud_cover_scene_pct', float('nan')):.1f}% · "
+                    f"Scene-wide cloud estimate: {cloud_cover_label} · "
                     f"Scene: {landsat_info.get('scene_id')}"
                 )
                 if not landsat_pixels.empty:
