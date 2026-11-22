@@ -44,6 +44,9 @@ def build_zone_coverage(
 
     frame = air.copy()
     key = _station_key(frame)
+    if key == "location_id" and "station" in frame.columns:
+        frame["_station_key"] = frame["location_id"].where(frame["location_id"].notna(), frame["station"])
+        key = "_station_key"
     if key not in frame.columns:
         return summary_defaults, pd.DataFrame(columns=station_columns), pd.DataFrame()
     frame["datetime_utc"] = pd.to_datetime(frame["datetime_utc"], errors="coerce", utc=True)
@@ -188,6 +191,9 @@ def detect_observed_hotspot_clusters(
         return "no_fresh_observations", pd.DataFrame(columns=result_columns), 0
 
     key = _station_key(frame)
+    if key == "location_id" and "station" in frame.columns:
+        frame["_station_key"] = frame["location_id"].where(frame["location_id"].notna(), frame["station"])
+        key = "_station_key"
     frame = frame.sort_values("datetime_utc").drop_duplicates(subset=[key], keep="last")
     sample_count = int(frame[key].nunique())
     if sample_count < minimum_stations:
