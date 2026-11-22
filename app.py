@@ -37,7 +37,7 @@ from ingestion.worldpop import (
     fetch_worldpop_event_exposure,
 )
 from ml.anomaly import detect_recent_weather_anomaly
-from ml.forecasting import train_next_observation_model
+from ml.forecasting import (\n    train_next_observation_model,\n    train_multi_horizon_weather_forecast,\n    train_pollutant_deterioration_forecast,\n)\nfrom ingestion.terrain_hydrology import fetch_terrain_susceptibility, fetch_hydro_features
 from utils.storage import ensure_data_dirs, load_observations, load_daily_observations
 
 st.set_page_config(
@@ -199,6 +199,22 @@ def load_air(lat: float, lon: float, key: str | None) -> pd.DataFrame:
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_green_spaces(lat: float, lon: float) -> pd.DataFrame:
     return fetch_green_spaces(lat, lon)
+
+@st.cache_data(ttl=604800, show_spinner=False)
+def load_terrain_screen(lat: float, lon: float):
+    return fetch_terrain_susceptibility(lat, lon)
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_hydro_features(lat: float, lon: float):
+    return fetch_hydro_features(lat, lon)
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_weather_horizon_models(observations: pd.DataFrame):
+    return train_multi_horizon_weather_forecast(observations)
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_pollutant_horizon_models(observations: pd.DataFrame, pollutant: str):
+    return train_pollutant_deterioration_forecast(observations, pollutant)
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_walking_access(lat: float, lon: float, green: pd.DataFrame):
@@ -602,25 +618,136 @@ elif page == "Environmental Analytics":
             st.dataframe(air_history.sort_values("datetime_utc", ascending=False).head(100), use_container_width=True, hide_index=True)
 elif page == "Predictive Intelligence":
     st.subheader("Predictive intelligence")
-    st.markdown("### Provider forecast")
+    st.caption("CityPulse experimental models are evaluated against a simple persistence baseline. Forecasts that fail the holdout comparison are withheld; Open-Meteo provider output remains separate.")
+
+    st.markdown("### Provider forecast · 72-hour context")
     if not weather.empty:
-        st.caption("Open-Meteo forecast, shown separately from CityPulse's trained model.")
-        st.dataframe(get_forward_hours(weather, weather_current, 48), use_container_width=True, hide_index=True)
-    st.markdown("### CityPulse machine-learning estimate")
+        provider_72 = get_forward_hours(weather, weather_current, 72)
+        provider_variables = [column for column in [
+            "apparent_temperature", "relative_humidity_2m",
+            "precipitation", "wind_speed_10m",
+        ] if column in provider_72.columns]
+        if provider_variables:
+            provider_fig = px.line(
+                provider_72, x="time", y=provider_variables,
+                template="plotly_dark",
+                color_discrete_sequence=["#39D5F6", "#A78BFA", "#FB7185", "#F59E0B"],
+                labels={"value":"Provider forecast", "time":"Local forecast time", "variable":"Variable"},
+            )
+            provider_fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238")
+            st.plotly_chart(provider_fig, use_container_width=True)
+        st.caption("Open-Meteo multi-model forecast at the selected city grid cell; not a CityPulse-trained prediction.")
+    else:
+        st.info("The provider forecast is unavailable.")
+
+    st.markdown("### CityPulse multi-variable weather forecast")
+    with st.spinner("Evaluating 24-, 48- and 72-hour weather models against the historical baseline…"):
+        weather_models = load_weather_horizon_models(history)
+    if weather_models.get("status") != "ready":
+        st.info(
+            f"Weather models are in data-collection mode ({weather_models.get('snapshots', 0):,} complete snapshots). "
+            f"{weather_models.get('reason', 'More complete historical records are required.')}"
+        )
+    else:
+        st.caption(
+            f"{weather_models.get('ready_models', 0)} model/horizon combinations have enough observations for evaluation. "
+            "Each model uses recent weather plus lagged observations and calendar features."
+        )
+        weather_units = {
+            "apparent_temperature": "°C",
+            "temperature_2m": "°C",
+            "relative_humidity_2m": "%",
+            "precipitation": "mm in the forecast hour",
+            "wind_speed_10m": "km/h",
+        }
+        weather_labels = {
+            "apparent_temperature": "Feels-like temperature",
+            "temperature_2m": "Air temperature",
+            "relative_humidity_2m": "Relative humidity",
+            "precipitation": "Hourly precipitation",
+            "wind_speed_10m": "Wind speed",
+        }
+        tabs = st.tabs(["24 hours", "48 hours", "72 hours"])
+        for tab, horizon in zip(tabs, ["24", "48", "72"]):
+            with tab:
+                rows = []
+                for parameter, result in weather_models.get("horizons", {}).get(horizon, {}).items():
+                    passed = result.get("status") == "ready" and result.get("beats_persistence")
+                    rows.append({
+                        "Variable": weather_labels.get(parameter, parameter),
+                        "Model estimate": (
+                            f"{result['prediction']:.2f} {weather_units.get(parameter, '')}"
+                            if passed else "Withheld"
+                        ),
+                        "Change vs latest": (
+                            f"{result['change']:+.2f} {weather_units.get(parameter, '')}"
+                            if passed else "—"
+                        ),
+                        "Direction": result.get("direction", "Insufficient history") if result.get("status") == "ready" else "Insufficient history",
+                        "Holdout MAE": result.get("mae"),
+                        "Persistence MAE": result.get("persistence_mae"),
+                        "Validation": "Beat baseline" if passed else ("Did not beat baseline" if result.get("status") == "ready" else "Insufficient data"),
+                        "Training pairs": result.get("training_samples", result.get("samples", 0)),
+                    })
+                if rows:
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                else:
+                    st.info("No forecast models have enough aligned observations for this horizon.")
+        st.caption(
+            "Weather model estimates are published only when their chronological holdout MAE is lower than persistence. "
+            "Precipitation is the predicted accumulation for the individual forecast hour, not the total over the preceding 24/48/72 hours."
+        )
+
+    st.markdown("### Particulate deterioration outlook")
+    st.caption(
+        "PM models use fixed-station OpenAQ observations only. Compatible concentration units are normalized to µg/m³; "
+        "readings are aggregated as the median of available stations in 3-hour UTC bins. Mobile sensors and unsupported units are excluded."
+    )
+    pollutant_cols = st.columns(2)
+    for column, pollutant in zip(pollutant_cols, ["PM2.5", "PM10"]):
+        with column:
+            st.markdown(f"#### {pollutant}")
+            with st.spinner(f"Evaluating {pollutant} 24–72-hour models…"):
+                pollutant_model = load_pollutant_horizon_models(history, pollutant)
+            if pollutant_model.get("status") != "ready":
+                st.info(
+                    f"Insufficient history ({pollutant_model.get('samples', 0):,} usable 3-hour bins). "
+                    f"{pollutant_model.get('reason', 'More compatible fixed-station readings are required.')}"
+                )
+                continue
+            pollutant_rows = []
+            for horizon in ["24", "48", "72"]:
+                result = pollutant_model["horizons"].get(horizon, {})
+                passed = result.get("status") == "ready" and result.get("beats_persistence")
+                pollutant_rows.append({
+                    "Horizon": f"{horizon} h",
+                    "Forecast (µg/m³)": f"{result['prediction']:.2f}" if passed else "Withheld",
+                    "Change": f"{result['change']:+.2f}" if passed else "—",
+                    "Direction": result.get("direction", "Insufficient history") if result.get("status") == "ready" else "Insufficient history",
+                    "Holdout MAE": result.get("mae"),
+                    "Baseline MAE": result.get("persistence_mae"),
+                    "Validation": "Beat baseline" if passed else ("Did not beat baseline" if result.get("status") == "ready" else "Insufficient data"),
+                })
+            st.dataframe(pd.DataFrame(pollutant_rows), use_container_width=True, hide_index=True)
+    st.warning(
+        "These are experimental, city-sample estimates—not official AQI forecasts, regulatory warnings or individual exposure predictions. "
+        "A forecast is withheld whenever its chronological holdout does not outperform persistence. Sparse monitoring history can leave some horizons unavailable."
+    )
+
+    st.markdown("### Existing next-observation diagnostic")
     forecast_result = train_next_observation_model(history)
     if forecast_result["status"] != "ready":
-        st.info(f"Model is in data-collection mode: {forecast_result['samples']} valid samples. {forecast_result['reason']}")
+        st.info(f"Three-hour diagnostic: {forecast_result['samples']} valid samples. {forecast_result['reason']}")
     else:
         metric_cols = st.columns(3)
         metric_cols[0].metric("Training pairs", f"{forecast_result['samples']:,}")
         metric_cols[1].metric("Holdout MAE", f"{forecast_result['mae']:.2f} °C")
-        metric_cols[2].metric("Persistence baseline MAE", f"{forecast_result['persistence_mae']:.2f} °C")
+        metric_cols[2].metric("Persistence MAE", f"{forecast_result['persistence_mae']:.2f} °C")
         if forecast_result["beats_persistence"]:
-            st.metric("Next-step apparent temperature estimate", f"{forecast_result['prediction']:.1f} °C", help="Experimental Random Forest estimate for the next scheduled observation, approximately three hours later.")
+            st.metric("Next-step feels-like estimate", f"{forecast_result['prediction']:.1f} °C")
         else:
-            st.warning("The model did not outperform the simple persistence baseline on the time-ordered holdout. Its next-step estimate is withheld until it demonstrates improvement.")
-        st.caption(f"Model: {forecast_result['model']} · RMSE: {forecast_result['rmse']:.2f} °C · Last sample: {forecast_result['last_observation']}")
-    st.caption("The model uses only historical Open-Meteo snapshots. It is not a substitute for the provider forecast or an official warning.")
+            st.warning("The three-hour estimate is withheld because it did not outperform persistence.")
+    st.caption("Model: Random Forest. Training and validation use historical Open-Meteo snapshots only. Provider forecasts and CityPulse model estimates are kept separate.")
 elif page == "Anomaly Detection":
     st.subheader("Weather pattern anomaly detection")
     anomaly = detect_recent_weather_anomaly(history)
@@ -1030,6 +1157,115 @@ elif page == "Zone Intelligence":
         st.info("Enable the analysis to search for a recent clear Landsat scene. Processing is cached for seven days per city.")
 
     st.markdown("[USGS Landsat Collection 2 surface-temperature product](https://www.usgs.gov/landsat-missions/landsat-collection-2-surface-temperature) · [Microsoft Planetary Computer STAC catalog](https://planetarycomputer.microsoft.com/catalog/dataset/landsat-c2-l2)")
+
+    st.markdown("### Terrain, rainfall & mapped waterway context")
+    st.caption(
+        "The terrain layer uses Copernicus DEM GLO-30. It identifies relative low terrain and slope patterns; "
+        "it is not a flood forecast and does not model drainage capacity, soil infiltration or water depth."
+    )
+    forecast_for_hydrology = get_forward_hours(weather, weather_current, 72) if not weather.empty else pd.DataFrame()
+    if not forecast_for_hydrology.empty and "precipitation" in forecast_for_hydrology:
+        forecast_rain = pd.to_numeric(forecast_for_hydrology["precipitation"], errors="coerce")
+        rain24 = forecast_rain.head(24).sum(min_count=1)
+        rain72 = forecast_rain.head(72).sum(min_count=1)
+        rain_peak = forecast_rain.head(72).max()
+        rainfall_cols = st.columns(3)
+        rainfall_cols[0].metric("Provider rainfall · next 24 h", f"{rain24:.1f} mm" if pd.notna(rain24) else "Unavailable")
+        rainfall_cols[1].metric("Provider rainfall · next 72 h", f"{rain72:.1f} mm" if pd.notna(rain72) else "Unavailable")
+        rainfall_cols[2].metric("Peak forecast hour · next 72 h", f"{rain_peak:.1f} mm" if pd.notna(rain_peak) else "Unavailable")
+        st.caption("Rainfall values are Open-Meteo modelled hourly precipitation totals at the selected city grid cell; they are not zone-level rainfall measurements.")
+    else:
+        st.info("Hourly rainfall forecast is unavailable for this city right now.")
+
+    load_terrain = st.checkbox("Load Copernicus DEM terrain screen (30 m source)", value=False, key="zone_load_terrain_screen")
+    if load_terrain:
+        try:
+            with st.spinner("Searching Copernicus DEM tiles and deriving terrain indicators…"):
+                terrain_frame, terrain_info = load_terrain_screen(city["latitude"], city["longitude"])
+            if terrain_info.get("status") == "ready" and not terrain_frame.empty:
+                terrain_cols = st.columns(4)
+                terrain_cols[0].metric("Elevation median", f"{terrain_info['elevation_median_m']:.0f} m")
+                terrain_cols[1].metric("Median slope", f"{terrain_info['slope_median_degrees']:.1f}°")
+                terrain_cols[2].metric("Relative low/gentle cells", f"{terrain_info['relative_low_gentle_cells']:,}")
+                terrain_cols[3].metric("DEM tiles used", f"{terrain_info['tiles_used']:,}")
+                terrain_fig = px.scatter_mapbox(
+                    terrain_frame,
+                    lat="latitude", lon="longitude", color="topographic_position_m",
+                    hover_data=["elevation_m", "slope_degrees", "terrain_class"],
+                    color_continuous_scale="RdYlBu", color_continuous_midpoint=0,
+                    zoom=8, height=520,
+                    labels={
+                        "topographic_position_m":"Local terrain position (m)",
+                        "elevation_m":"Surface elevation (m)",
+                        "slope_degrees":"Slope (degrees)",
+                    },
+                )
+                terrain_fig.update_traces(marker={"size":6, "opacity":0.78})
+                terrain_fig.update_layout(
+                    mapbox_style="carto-darkmatter",
+                    mapbox_center={"lat":city["latitude"], "lon":city["longitude"]},
+                    paper_bgcolor="#0B1220", margin={"l":0, "r":0, "t":10, "b":0},
+                )
+                st.plotly_chart(terrain_fig, use_container_width=True)
+                st.dataframe(
+                    terrain_frame.groupby("terrain_class", as_index=False).agg(
+                        sampled_cells=("terrain_class", "size"),
+                        median_slope_degrees=("slope_degrees", "median"),
+                        median_elevation_m=("elevation_m", "median"),
+                    ).sort_values("sampled_cells", ascending=False),
+                    use_container_width=True, hide_index=True,
+                )
+                st.caption(
+                    f"Source: Copernicus DEM GLO-30 (nominal 30 m DSM); analysis grid is approximately "
+                    f"{terrain_info['resolution_x_m']:.0f} × {terrain_info['resolution_y_m']:.0f} m. "
+                    "Relative terrain position is elevation minus a local ~1 km neighbourhood mean. "
+                    "The low-lying/gentle category is the lowest 20% of local terrain-position values with slope ≤5°. "
+                    "DSM elevations include buildings and vegetation; this screening does not identify flood extent or probability."
+                )
+            else:
+                st.info(f"Terrain screen unavailable: {terrain_info.get('status', 'no usable DEM')}.")
+        except Exception as exc:
+            st.warning(f"Copernicus terrain service is temporarily unavailable: {exc}")
+    else:
+        st.caption("Terrain processing is on demand and cached for seven days per city.")
+
+    load_waterways = st.checkbox("Show mapped rivers, streams, canals and water bodies (OpenStreetMap)", value=False, key="zone_load_hydro_features")
+    if load_waterways:
+        try:
+            with st.spinner("Loading mapped waterways and surface-water features…"):
+                hydro_frame = load_hydro_features(city["latitude"], city["longitude"])
+            if hydro_frame.empty:
+                st.info("No nearby mapped water features were returned. OpenStreetMap coverage is incomplete, so this does not confirm that water features are absent.")
+            else:
+                hydro_cols = st.columns(3)
+                hydro_cols[0].metric("Mapped water features", f"{len(hydro_frame):,}")
+                hydro_cols[1].metric("Within 2 km", f"{int((hydro_frame['distance_km'] <= 2).sum()):,}")
+                hydro_cols[2].metric("Feature categories", f"{hydro_frame['category'].nunique():,}")
+                hydro_fig = px.scatter_mapbox(
+                    hydro_frame, lat="latitude", lon="longitude",
+                    color="category", hover_name="name",
+                    hover_data=["distance_km", "osm_type", "osm_id"],
+                    zoom=9, height=440,
+                )
+                hydro_fig.update_traces(marker={"size":9, "opacity":0.85})
+                hydro_fig.update_layout(
+                    mapbox_style="carto-darkmatter",
+                    mapbox_center={"lat":city["latitude"], "lon":city["longitude"]},
+                    paper_bgcolor="#0B1220", margin={"l":0, "r":0, "t":10, "b":0},
+                )
+                st.plotly_chart(hydro_fig, use_container_width=True)
+                st.dataframe(
+                    hydro_frame.sort_values("distance_km").head(100),
+                    use_container_width=True, hide_index=True,
+                )
+                st.caption(
+                    "OpenStreetMap features are community mapped and displayed at their mapped centre points, "
+                    "not as surveyed channel geometry. Missing features or drains may simply be unmapped. "
+                    "© OpenStreetMap contributors · https://www.openstreetmap.org/copyright"
+                )
+        except Exception as exc:
+            st.warning(f"OpenStreetMap water-feature lookup is temporarily unavailable: {exc}")
+
     if st.checkbox("Show NASA MODIS daily temperature context image", value=False, key="zone_load_nasa_lst"):
         try:
             with st.spinner("Loading NASA MODIS context imagery…"):
