@@ -5,6 +5,8 @@ from pathlib import Path
 import requests
 from streamlit.testing.v1 import AppTest
 
+from analytics.alert_store import load_city_preferences
+
 from config.cities import COUNTRY_CITIES
 
 
@@ -53,8 +55,6 @@ def test_streamlit_workspace_pages_render_when_providers_are_unavailable(monkeyp
         )
         assert app.radio[0].value == page
 
-from analytics.alert_store import load_city_preferences
-
 
 def test_smart_alert_thresholds_save_and_restore_per_city_offline(monkeypatch, tmp_path):
     """Exercise threshold controls and city-scoped preferences without provider access."""
@@ -71,7 +71,8 @@ def test_smart_alert_thresholds_save_and_restore_per_city_offline(monkeypatch, t
     selected_values = (45.0, 25.0, 85.0, 150.0)
     for index, value in enumerate(selected_values):
         app.slider[index].set_value(value)
-    app.button[0].click()
+    save_button = next(button for button in app.button if button.label == "Save alert preferences")
+    save_button.click()
     app.run(timeout=90)
     assert not app.exception, [item.message for item in app.exception]
 
