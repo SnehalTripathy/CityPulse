@@ -86,7 +86,7 @@ The first Environmental Health & Exposure implementation uses WorldPop Global2 (
 
 The first Smart Alerts implementation provides configurable, session-only thresholds for modelled current apparent temperature, preceding-hour rainfall, next-24-hour forecast values and recent fixed-station PM medians. Each trigger identifies its source, value, timestamp and station count where applicable. Recommendations are informational and are not official warnings. Email/SMS/push delivery, persistent alert history and personal notification preferences remain out of scope until logic and external data availability are validated.
 
-The WorldPop and alert modules are covered by automated tests. Live WorldPop service availability, population-map display and alert-page behaviour still require a deployed Streamlit check.
+The WorldPop and alert modules are covered by automated tests (71 tests passed in GitHub Actions, run 45043246416). Live population context and the 1 km population overlay have rendered in the deployed Streamlit app. The latest density metadata/cache revision and Smart Alerts page still require a fresh deployed-app check; the WorldPop event-exposure button has not yet been verified against a live qualifying event.
 
 ## Priority 1–2 readiness note
 
@@ -111,7 +111,7 @@ The City Comparison Engine and Advanced Zone Intelligence implementations are co
 - [x] Distinguish modelled grid-cell weather, OpenAQ station measurements, provider forecasts, experimental CityPulse outputs and spatial estimates in the new comparison/zone views
 - [x] Show timestamps, units, source provenance, station-age ranges and missing/future-data states in comparison and zone views
 - [x] Confirm city timezone handling for every country (all registry timezones validated and passed to weather requests)
-- [x] Automated tests pass (61 tests passed in GitHub Actions before starting Priority 3 and 4; new 71-test suite is awaiting verification)
+- [x] Automated tests pass (61 tests passed in GitHub Actions before starting Priority 3 and 4; 71 tests passed in GitHub Actions; latest verified run 45043246416)
 - [x] README accurately describes released features and limitations
 - [ ] Streamlit deployment successfully starts and core pages render
 - [ ] Recheck OpenStreetMap green-space lookup after adding a non-default CityPulse User-Agent (live 406 observed before this fix); external OpenStreetMap/ESA/Landsat service availability is not covered by CI
