@@ -90,7 +90,7 @@ def latest_pollutant_summary(
         frame["_station"] = frame.index.astype(str)
         station_key = "_station"
     if "is_mobile" in frame.columns:
-        frame = frame.loc[~frame["is_mobile"].fillna(False).astype(bool)].copy()
+        frame = frame.loc[~frame["is_mobile"].map(lambda value: str(value).strip().lower() in {"true", "1", "yes", "y"})].copy()
     if frame.empty:
         return empty
 
