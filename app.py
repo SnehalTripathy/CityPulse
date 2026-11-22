@@ -37,8 +37,10 @@ ensure_data_dirs()
 
 @st.cache_data(ttl=600, show_spinner=False)
 def load_history() -> pd.DataFrame:
-    """Load the shared archive, falling back to a local checked-out copy."""
+    """Load local detailed history, with a shared GitHub fallback."""
     local = load_observations()
+    if not local.empty:
+        return local
     archive_url = "https://raw.githubusercontent.com/SnehalTripathy/CityPulse/main/data/raw/observations.csv"
     try:
         response = requests.get(archive_url, timeout=(4, 25))
@@ -286,6 +288,8 @@ if page == "City Comparison":
                             api_key,
                         )
                     current = comparison_weather.attrs.get("current", {}) if not comparison_weather.empty else {}
+                    current = dict(current)
+                    current["timezone"] = comparison_city["timezone"]
                     comparison_rows.append(
                         build_city_comparison_record(comparison_name, current, comparison_air)
                     )
@@ -344,7 +348,7 @@ if page == "City Comparison":
     with trend_cols[0]:
         trend_metric = st.selectbox("Trend metric", list(TREND_METRICS), key="comparison_trend_metric")
     with trend_cols[1]:
-        trend_days = st.selectbox("History window", [7, 30, 90, 180], index=1, format_func=lambda value: f"Last {value} days", key="comparison_trend_days")
+        trend_days = st.selectbox("History window", [7, 30, 90, 180, 365], index=1, format_func=lambda value: f"Last {value} days", key="comparison_trend_days")
     if len(comparison_cities) < 2:
         st.info("Choose at least two cities above to compare historical trends.")
     elif all_history.empty and all_daily_history.empty:
