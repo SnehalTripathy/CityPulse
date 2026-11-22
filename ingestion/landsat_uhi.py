@@ -91,19 +91,60 @@ def _read_asset_on_grid(href: str, bbox: tuple[float, float, float, float], widt
     return destination, transform
 
 
+def summarize_scene_contrasts(scene_records: list[dict]) -> dict:
+    """Summarize independent scene-level urban/reference surface-temperature contrasts."""
+    values = [
+        float(item["surface_temperature_contrast_c"])
+        for item in scene_records
+        if item.get("surface_temperature_contrast_c") is not None
+    ]
+    urban = [
+        float(item["urban_proxy_median_c"])
+        for item in scene_records
+        if item.get("urban_proxy_median_c") is not None
+    ]
+    vegetated = [
+        float(item["vegetated_reference_median_c"])
+        for item in scene_records
+        if item.get("vegetated_reference_median_c") is not None
+    ]
+    dates = sorted(str(item.get("acquired", ""))[:10] for item in scene_records if item.get("acquired"))
+    uncertainties = [
+        float(item["median_st_uncertainty_k"])
+        for item in scene_records
+        if item.get("median_st_uncertainty_k") is not None
+    ]
+    return {
+        "scene_count": len(values),
+        "scene_dates": dates,
+        "temporal_span_days": (
+            (pd.Timestamp(dates[-1]) - pd.Timestamp(dates[0])).days if len(dates) >= 2 else 0
+        ),
+        "surface_temperature_contrast_c": float(np.median(values)) if values else None,
+        "contrast_min_c": float(np.min(values)) if values else None,
+        "contrast_max_c": float(np.max(values)) if values else None,
+        "urban_proxy_median_c": float(np.median(urban)) if urban else None,
+        "vegetated_reference_median_c": float(np.median(vegetated)) if vegetated else None,
+        "median_st_uncertainty_k": float(np.median(uncertainties)) if uncertainties else None,
+    }
+
+
 def fetch_landsat_surface_temperature_analysis(
     latitude: float,
     longitude: float,
     days_back: int = 1095,
     radius_km: float = 25.0,
-    maximum_scenes: int = 15,
+    maximum_scenes: int = 30,
+    target_usable_scenes: int = 3,
 ) -> tuple[pd.DataFrame, dict]:
-    """Find a clear recent Landsat scene and calculate a surface-temperature contrast.
+    """Find recent clear Landsat scenes and summarize a surface-temperature contrast.
 
-    Landsat Collection 2 L2 assets are read from public Microsoft Planetary
-    Computer COGs. Surface temperature is scaled per USGS documentation.
-    QA_PIXEL cloud/shadow/snow/fill/water pixels are excluded. Output samples
-    are intentionally downsampled for map rendering.
+    Landsat Collection 2 Level-2 ST_B10, SR_B4/SR_B5, QA_PIXEL, QA_RADSAT,
+    and ST_QA assets are read from Microsoft Planetary Computer COGs.
+    Temperatures and reflectance are scaled using USGS product factors.
+    The contrast uses an approximate built/bare urban-core proxy and a
+    vegetated outer reference. Multiple usable scenes are aggregated when
+    available; fewer scenes are explicitly identified as limited evidence.
     """
     diagnostics = {
         "status": "no_scene",
@@ -112,14 +153,24 @@ def fetch_landsat_surface_temperature_analysis(
         "acquired": None,
         "cloud_cover_scene_pct": None,
         "surface_temperature_contrast_c": None,
+        "contrast_min_c": None,
+        "contrast_max_c": None,
         "urban_proxy_median_c": None,
         "vegetated_reference_median_c": None,
         "urban_pixels": 0,
         "reference_pixels": 0,
         "valid_pixels": 0,
-        "pixel_size_m": 200,
+        "pixel_size_m": round((2.0 * float(radius_km) * 1000.0) / 250, 1),
+        "scene_count": 0,
+        "scene_dates": [],
+        "temporal_span_days": 0,
+        "median_st_uncertainty_k": None,
+        "st_uncertainty_source": "USGS ST_QA band (0.01 K scale), when available",
     }
-    empty = pd.DataFrame(columns=["latitude", "longitude", "temperature_c", "ndvi", "distance_km", "surface_class"])
+    empty = pd.DataFrame(columns=[
+        "latitude", "longitude", "temperature_c", "ndvi", "distance_km",
+        "surface_class", "st_uncertainty_k",
+    ])
     radius_lat = float(radius_km) / 111.32
     radius_lon = float(radius_km) / (111.32 * max(0.15, abs(math.cos(math.radians(latitude)))))
     bbox = (longitude - radius_lon, latitude - radius_lat, longitude + radius_lon, latitude + radius_lat)
@@ -137,23 +188,28 @@ def fetch_landsat_surface_temperature_analysis(
     )
     items = list(search.items())
     if not items:
-        diagnostics["status"] = "no_scene"
         return empty, diagnostics
 
-    # Try newest scenes first; QA_PIXEL filtering below decides if a scene is
-    # actually usable over this city window.
+    scene_records: list[dict] = []
+    latest_map = None
+    latest_scene = None
     last_error = None
+    width = height = 250
+    left, bottom, right, top = bbox
+
     for raw_item in items:
-        item = planetary_computer.sign(raw_item)
+        try:
+            item = planetary_computer.sign(raw_item)
+        except Exception as exc:
+            last_error = str(exc)
+            continue
         assets = item.assets
         required_assets = {"lwir11", "qa_pixel", "red", "nir08"}
         if not required_assets.issubset(assets):
             continue
         scene_cloud = item.properties.get("eo:cloud_cover")
         try:
-            width = 250
-            height = 250
-            lst_dn, transform = _read_asset_on_grid(
+            lst_dn, _ = _read_asset_on_grid(
                 assets["lwir11"].href, bbox, width, height, Resampling.bilinear
             )
             qa, _ = _read_asset_on_grid(
@@ -165,31 +221,54 @@ def fetch_landsat_surface_temperature_analysis(
             nir_dn, _ = _read_asset_on_grid(
                 assets["nir08"].href, bbox, width, height, Resampling.bilinear
             )
+            if "qa" in assets:
+                st_qa_dn, _ = _read_asset_on_grid(
+                    assets["qa"].href, bbox, width, height, Resampling.nearest
+                )
+                st_uncertainty_k = st_qa_dn * 0.01
+            else:
+                st_uncertainty_k = np.full((height, width), np.nan, dtype=float)
 
-            # USGS Collection 2 L2 surface-temperature scale and offset.
+            qa_values = qa.astype(np.uint16)
+            invalid_qa_bits = (
+                (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3)
+                | (1 << 4) | (1 << 5) | (1 << 7)
+            )
+            valid = (lst_dn > 0) & ((qa_values & invalid_qa_bits) == 0)
+
+            # QA_RADSAT bit 9 flags Landsat 8/9 Band 10 saturation and
+            # bit 11 flags terrain occlusion.
+            if "qa_radsat" in assets:
+                qa_radsat, _ = _read_asset_on_grid(
+                    assets["qa_radsat"].href, bbox, width, height, Resampling.nearest
+                )
+                radsat_values = qa_radsat.astype(np.uint16)
+                valid &= (radsat_values & ((1 << 9) | (1 << 11))) == 0
+
+            if "qa" in assets:
+                valid &= st_qa_dn > 0
+
             temperature_k = lst_dn * 0.00341802 + 149.0
             temperature_c = temperature_k - 273.15
             red = red_dn * 0.0000275 - 0.2
             nir = nir_dn * 0.0000275 - 0.2
-            ndvi = (nir - red) / np.maximum(nir + red, 1e-6)
-
-            qa_values = qa.astype(np.uint16)
-            invalid_bits = (
-                (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3)
-                | (1 << 4) | (1 << 5) | (1 << 7)
+            denominator = nir + red
+            ndvi = np.divide(
+                nir - red,
+                denominator,
+                out=np.full_like(denominator, np.nan, dtype=float),
+                where=np.abs(denominator) > 1e-6,
             )
-            valid = (
-                (lst_dn > 0)
-                & ((qa_values & invalid_bits) == 0)
-                & np.isfinite(temperature_c)
+            valid &= (
+                np.isfinite(temperature_c)
                 & (temperature_c >= -40)
                 & (temperature_c <= 80)
                 & np.isfinite(ndvi)
                 & (ndvi >= -1)
                 & (ndvi <= 1)
             )
+
             rows, cols = np.indices((height, width))
-            left, bottom, right, top = bbox
             pixel_lon = left + (cols + 0.5) * ((right - left) / width)
             pixel_lat = top - (rows + 0.5) * ((top - bottom) / height)
             distance = _haversine_grid_km(pixel_lat, pixel_lon, latitude, longitude)
@@ -199,47 +278,80 @@ def fetch_landsat_surface_temperature_analysis(
                 "temperature_c": temperature_c[valid],
                 "ndvi": ndvi[valid],
                 "distance_km": distance[valid],
+                "st_uncertainty_k": st_uncertainty_k[valid],
             })
             contrast = summarize_surface_temperature_contrast(pixels)
             if contrast["status"] != "ready":
                 last_error = f"Scene {item.id} had too few clear pixels in the urban/reference pools."
                 continue
 
-            # Downsample valid observations for a responsive map; keep measured
-            # raster values, not an interpolated surface.
-            sample_mask = valid & ((rows % 3) == 0) & ((cols % 3) == 0)
-            sample_classes = np.where(
-                (distance <= 5) & (ndvi <= 0.20),
-                "Urban-core proxy",
-                np.where(
-                    (distance >= 10) & (distance <= 25) & (ndvi >= 0.35),
-                    "Vegetated reference",
-                    "Other valid pixel",
-                ),
-            )
-            pixels_map = pd.DataFrame({
-                "latitude": pixel_lat[sample_mask].ravel(),
-                "longitude": pixel_lon[sample_mask].ravel(),
-                "temperature_c": temperature_c[sample_mask].ravel(),
-                "ndvi": ndvi[sample_mask].ravel(),
-                "distance_km": distance[sample_mask].ravel(),
-                "surface_class": sample_classes[sample_mask].ravel(),
-            })
-            diagnostics.update(contrast)
-            diagnostics.update({
-                "status": "ready",
+            acquired = item.properties.get("datetime")
+            scene_record = {
+                **contrast,
                 "scene_id": item.id,
-                "acquired": item.properties.get("datetime"),
+                "acquired": acquired,
                 "cloud_cover_scene_pct": float(scene_cloud) if scene_cloud is not None else None,
                 "valid_pixels": int(valid.sum()),
-                "pixel_size_m": round((2.0 * float(radius_km) * 1000.0) / width, 1),
-                "source": LANDSAT_SOURCE,
-            })
-            return pixels_map, diagnostics
+            }
+            scene_records.append(scene_record)
+
+            if latest_map is None:
+                sample_mask = valid & ((rows % 3) == 0) & ((cols % 3) == 0)
+                sample_classes = np.where(
+                    (distance <= 5) & (ndvi <= 0.20),
+                    "Urban-core proxy",
+                    np.where(
+                        (distance >= 10) & (distance <= 25) & (ndvi >= 0.35),
+                        "Vegetated reference",
+                        "Other valid pixel",
+                    ),
+                )
+                latest_map = pd.DataFrame({
+                    "latitude": pixel_lat[sample_mask].ravel(),
+                    "longitude": pixel_lon[sample_mask].ravel(),
+                    "temperature_c": temperature_c[sample_mask].ravel(),
+                    "ndvi": ndvi[sample_mask].ravel(),
+                    "distance_km": distance[sample_mask].ravel(),
+                    "surface_class": sample_classes[sample_mask].ravel(),
+                    "st_uncertainty_k": st_uncertainty_k[sample_mask].ravel(),
+                })
+                latest_scene = scene_record
+
+            if len(scene_records) >= max(1, int(target_usable_scenes)):
+                break
         except Exception as exc:
             last_error = str(exc)
             continue
 
-    diagnostics["status"] = "no_usable_scene"
-    diagnostics["error"] = last_error or "No suitable thermal scenes were found."
-    return empty, diagnostics
+    if not scene_records or latest_map is None or latest_scene is None:
+        diagnostics["status"] = "no_usable_scene"
+        diagnostics["error"] = last_error or "No recent scene had enough valid urban and vegetated-reference pixels."
+        return empty, diagnostics
+
+    temporal = summarize_scene_contrasts(scene_records)
+    diagnostics.update(temporal)
+    diagnostics.update({
+        "status": "ready",
+        "scene_id": latest_scene["scene_id"],
+        "acquired": latest_scene["acquired"],
+        "cloud_cover_scene_pct": latest_scene["cloud_cover_scene_pct"],
+        "valid_pixels": latest_scene["valid_pixels"],
+        "urban_pixels": latest_scene["urban_pixels"],
+        "reference_pixels": latest_scene["reference_pixels"],
+        "urban_definition": latest_scene["urban_definition"],
+        "reference_definition": latest_scene["reference_definition"],
+        "scene_contrasts": [
+            {
+                "scene_id": item["scene_id"],
+                "date": str(item["acquired"])[:10],
+                "contrast_c": item["surface_temperature_contrast_c"],
+                "urban_median_c": item["urban_proxy_median_c"],
+                "vegetated_median_c": item["vegetated_reference_median_c"],
+                "valid_pixels": item["valid_pixels"],
+                "cloud_cover_scene_pct": item["cloud_cover_scene_pct"],
+            }
+            for item in scene_records
+        ],
+        "source": LANDSAT_SOURCE,
+    })
+    return latest_map, diagnostics
