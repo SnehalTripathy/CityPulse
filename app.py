@@ -319,6 +319,10 @@ if page == "City Comparison":
                 "PM2.5 (µg/m³)": "{:.1f}",
                 "PM10 (µg/m³)": "{:.1f}",
                 "CityPulse Index": "{:.1f}",
+                "PM2.5 oldest station age (h)": "{:.1f}",
+                "PM2.5 median station age (h)": "{:.1f}",
+                "PM10 oldest station age (h)": "{:.1f}",
+                "PM10 median station age (h)": "{:.1f}",
             }, na_rep="—"),
             use_container_width=True,
             hide_index=True,
@@ -402,7 +406,8 @@ elif page == "Air Quality Intelligence":
     else:
         air_summary = summarize_air_quality(air)
         station_count = air["location_id"].nunique() if "location_id" in air.columns else air["station"].nunique()
-        newest_age = float(air_summary["age_hours"].min()) if not air_summary.empty else None
+        valid_ages = pd.to_numeric(air_summary["age_hours"], errors="coerce").dropna() if not air_summary.empty else pd.Series(dtype=float)
+        newest_age = float(valid_ages.min()) if not valid_ages.empty else None
         kpis = st.columns(3)
         kpis[0].metric("Monitoring stations", f"{station_count:,}")
         kpis[1].metric("Pollutants reported", f"{air_summary['parameter'].nunique():,}")
@@ -507,7 +512,8 @@ elif page == "Command Center":
     else:
         air_summary = summarize_air_quality(air)
         station_total = air["location_id"].nunique() if "location_id" in air.columns else air["station"].nunique()
-        freshest_age = float(air_summary["age_hours"].min()) if not air_summary.empty else None
+        valid_ages = pd.to_numeric(air_summary["age_hours"], errors="coerce").dropna() if not air_summary.empty else pd.Series(dtype=float)
+        freshest_age = float(valid_ages.min()) if not valid_ages.empty else None
         quality_cols[1].metric("Air monitoring stations", f"{station_total:,}")
         quality_cols[2].metric("Newest air observation", f"{freshest_age:.1f} h ago" if freshest_age is not None else "Unavailable")
         if freshest_age is not None and freshest_age > 48:
@@ -614,7 +620,7 @@ elif page == "Zone Intelligence":
         {"station_count":0, "geocoded_station_count":0, "nearest_station_km":None,
          "median_station_distance_km":None, "farthest_station_km":None,
          "occupied_grid_cells":0, "fresh_stations":0, "recent_stations":0,
-         "stale_stations":0, "fixed_stations":0, "mobile_stations":0, "query_radius_km":25.0},
+         "stale_stations":0, "future_timestamp_stations":0, "fixed_stations":0, "mobile_stations":0, "query_radius_km":25.0},
         pd.DataFrame(), pd.DataFrame()
     )
     if not air.empty and {"latitude", "longitude"}.issubset(air.columns):
@@ -634,7 +640,7 @@ elif page == "Zone Intelligence":
     distance_cols = st.columns(3)
     distance_cols[0].metric("Nearest fixed station", f"{coverage['nearest_station_km']:.1f} km" if coverage["nearest_station_km"] is not None else "Unavailable")
     distance_cols[1].metric("Median fixed-station distance", f"{coverage['median_station_distance_km']:.1f} km" if coverage["median_station_distance_km"] is not None else "Unavailable")
-    distance_cols[2].metric("Occupied 5 km cells", f"{coverage['occupied_grid_cells']:,}")
+    distance_cols[2].metric("Future-dated stations", f"{coverage['future_timestamp_stations']:,}")
 
     map_age = st.selectbox(
         "Map observation age",
@@ -753,13 +759,13 @@ elif page == "Zone Intelligence":
         st.info("Station-level inventory is unavailable because no timestamped station records were returned.")
     else:
         st.dataframe(
-            station_inventory[["station", "location_id", "distance_km", "latest_utc", "age_hours", "freshness", "is_mobile", "pollutant_count", "reading_count"]].style.format({"distance_km":"{:.2f}", "age_hours":"{:.1f}"}),
+            station_inventory[["station", "location_id", "distance_km", "latest_utc", "age_hours", "freshness", "future_timestamp_readings", "is_mobile", "pollutant_count", "reading_count"]].style.format({"distance_km":"{:.2f}", "age_hours":"{:.1f}"}),
             use_container_width=True, hide_index=True,
         )
         with st.expander("Station data provenance"):
             provenance = station_inventory[["station", "location_id", "provider", "owner", "licenses", "timezone"]]
             st.dataframe(provenance, use_container_width=True, hide_index=True)
-        st.caption("Fresh ≤6 hours · Recent 6–48 hours · Stale >48 hours. These labels describe the newest provider timestamp per returned station, not instrument calibration. The map filter above is independent of this complete inventory.")
+        st.caption("Fresh ≤6 hours · Recent 6–48 hours · Stale >48 hours · Future timestamp = provider time more than 15 minutes ahead and excluded from age labels and spatial analytics. These labels do not measure instrument calibration. The map filter above is independent of this inventory.")
     st.markdown("### Returned-station coverage grid")
     coverage_grid = build_zone_coverage_grid(
         occupied_cells, city["latitude"], city["longitude"], radius_km=25, grid_km=5
