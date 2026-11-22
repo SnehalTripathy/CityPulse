@@ -41,7 +41,7 @@ def collect_snapshot(api_key: str | None = None) -> pd.DataFrame:
     rows: list[dict] = []
 
     for city_name, city in CITIES.items():
-        weather = fetch_forecast(city["latitude"], city["longitude"])
+        weather = fetch_forecast(city["latitude"], city["longitude"], city["timezone"])
         current = weather.attrs.get("current", {}) or {}
         weather_time = _local_timestamp_to_utc(current.get("time"), city["timezone"])
         for parameter, unit in WEATHER_PARAMETERS.items():
