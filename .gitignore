@@ -4,7 +4,7 @@ __pycache__/
 venv/
 .env
 .streamlit/secrets.toml
-data/raw/*
+data/raw/*.parquet
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
