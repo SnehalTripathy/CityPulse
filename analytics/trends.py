@@ -78,7 +78,10 @@ def build_city_trend_frame(
     else:
         now = now.tz_convert("UTC")
     cutoff = now - pd.Timedelta(days=max(1, int(days)))
-    frame = frame.loc[frame["datetime_utc"] >= cutoff].copy()
+    frame = frame.loc[
+        (frame["datetime_utc"] >= cutoff)
+        & (frame["datetime_utc"] <= now + pd.Timedelta(minutes=15))
+    ].copy()
     if frame.empty:
         return empty_trend, empty_coverage
 
