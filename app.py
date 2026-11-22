@@ -235,12 +235,15 @@ if page == "City Comparison":
                     stations = comparison_air["location_id"].nunique() if not comparison_air.empty and "location_id" in comparison_air.columns else (comparison_air["station"].nunique() if not comparison_air.empty and "station" in comparison_air.columns else 0)
                     comparison_rows.append({
                         "City": comparison_name,
+                        "Weather observation time": current.get("time"),
                         "Temperature (°C)": current.get("temperature_2m"),
                         "Feels like (°C)": current.get("apparent_temperature"),
                         "Humidity (%)": current.get("relative_humidity_2m"),
                         "Rainfall (mm)": current.get("precipitation"),
                         "PM2.5 (µg/m³)": _pollutant_median(quality, "pm25"),
                         "PM10 (µg/m³)": _pollutant_median(quality, "pm10"),
+                        "Latest air observation (UTC)": quality["latest_utc"].max() if not quality.empty else None,
+                        "Air reading age (h)": float(quality["age_hours"].min()) if not quality.empty else None,
                         "CityPulse Index": stress.get("index"),
                         "Monitoring stations": stations,
                     })
