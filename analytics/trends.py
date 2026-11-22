@@ -4,7 +4,7 @@ import pandas as pd
 
 
 def _parameter_token(value: object) -> str:
-    return str(value).lower().replace(".", "").replace("_", "").replace(" ", "").replace("₂", "2")
+    return str(value).lower().replace(".", "").replace("_", "").replace(" ", "").replace("₂", "2").replace("₅", "5")
 
 
 def _unit_token(value: object) -> str:
@@ -39,8 +39,16 @@ def build_city_trend_frame(
     empty_coverage = pd.DataFrame(columns=coverage_columns)
 
     specification = TREND_METRICS.get(metric)
+    if observations.empty or not cities or specification is None:
+        return empty_trend, empty_coverage
+    observations = observations.copy()
+    # The collector maintains a compact station-day archive for 365-day trends.
+    # Raw high-frequency rows remain supported for backward compatibility.
+    if {"date", "median_value"}.issubset(observations.columns) and "datetime_utc" not in observations.columns:
+        observations["value"] = observations["median_value"]
+        observations["datetime_utc"] = observations["date"]
     required = {"city", "source", "parameter", "value", "unit", "datetime_utc"}
-    if observations.empty or not required.issubset(observations.columns) or not cities or specification is None:
+    if not required.issubset(observations.columns):
         return empty_trend, empty_coverage
 
     frame = observations.loc[
@@ -59,6 +67,8 @@ def build_city_trend_frame(
         frame["value"] = frame["value"] * frame["unit_token"].map(unit_factor)
     frame["datetime_utc"] = pd.to_datetime(frame["datetime_utc"], errors="coerce", utc=True)
     frame = frame.dropna(subset=["value", "datetime_utc"])
+    if "is_mobile" in frame.columns:
+        frame = frame.loc[~frame["is_mobile"].fillna(False).astype(bool)].copy()
     if frame.empty:
         return empty_trend, empty_coverage
 
@@ -78,9 +88,14 @@ def build_city_trend_frame(
         frame[station_key] = frame["city"]
     # For air quality, first summarize repeated reports per station/day, then
     # summarize across stations. For weather, daily median is the grid-cell series.
-    station_daily = frame.groupby(
-        ["city", "date", station_key], dropna=False, as_index=False
-    ).agg(value=("value", "median"), reading_count=("value", "size"))
+    if "reading_count" in frame.columns:
+        station_daily = frame.groupby(
+            ["city", "date", station_key], dropna=False, as_index=False
+        ).agg(value=("value", "median"), reading_count=("reading_count", "sum"))
+    else:
+        station_daily = frame.groupby(
+            ["city", "date", station_key], dropna=False, as_index=False
+        ).agg(value=("value", "median"), reading_count=("value", "size"))
     trend = station_daily.groupby(["city", "date"], as_index=False).agg(
         value=("value", "median"),
         reading_count=("reading_count", "sum"),
@@ -105,11 +120,13 @@ def build_city_trend_frame(
         readings=("reading_count", "sum"),
         first_day=("date", "min"),
         last_day=("date", "max"),
-    ).reset_index().rename(columns={
+    ).reindex(cities).rename_axis("city").reset_index().rename(columns={
         "city": "City",
         "days_with_data": "Days with data",
         "readings": "Readings",
         "first_day": "First day (UTC)",
         "last_day": "Last day (UTC)",
     })
+    coverage["Days with data"] = coverage["Days with data"].fillna(0).astype(int)
+    coverage["Readings"] = coverage["Readings"].fillna(0).astype(int)
     return trend, coverage
