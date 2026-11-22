@@ -12,6 +12,7 @@ from ingestion.weather_api import fetch_forecast
 from ingestion.openaq_api import fetch_latest_measurements
 from analytics.stress_index import add_weather_stress
 from analytics.data_quality import summarize_air_quality
+from analytics.comparison import build_city_comparison_record
 from analytics.urban_stress import calculate_urban_stress
 from ml.anomaly import detect_recent_weather_anomaly
 from ml.forecasting import train_next_observation_model
@@ -223,30 +224,9 @@ if page == "City Comparison":
                             api_key,
                         )
                     current = comparison_weather.attrs.get("current", {}) if not comparison_weather.empty else {}
-                    quality = summarize_air_quality(comparison_air)
-                    def _pollutant_median(summary, target):
-                        if summary.empty:
-                            return None
-                        tokens = summary["parameter"].astype(str).str.lower().str.replace(".", "", regex=False).str.replace("_", "", regex=False)
-                        matched = summary.loc[tokens.isin({target, target + "mass"})]
-                        matched = matched[matched["unit"].astype(str).str.lower().str.replace(" ", "", regex=False).isin({"µg/m³", "ug/m3", "µg/m3", "ug/m³"})]
-                        return float(matched["median_value"].median()) if not matched.empty else None
-                    stress = calculate_urban_stress(current, comparison_air) if current else {"index": None}
-                    stations = comparison_air["location_id"].nunique() if not comparison_air.empty and "location_id" in comparison_air.columns else (comparison_air["station"].nunique() if not comparison_air.empty and "station" in comparison_air.columns else 0)
-                    comparison_rows.append({
-                        "City": comparison_name,
-                        "Weather observation time": current.get("time"),
-                        "Temperature (°C)": current.get("temperature_2m"),
-                        "Feels like (°C)": current.get("apparent_temperature"),
-                        "Humidity (%)": current.get("relative_humidity_2m"),
-                        "Rainfall (mm)": current.get("precipitation"),
-                        "PM2.5 (µg/m³)": _pollutant_median(quality, "pm25"),
-                        "PM10 (µg/m³)": _pollutant_median(quality, "pm10"),
-                        "Latest air observation (UTC)": quality["latest_utc"].max() if not quality.empty else None,
-                        "Air reading age (h)": float(quality["age_hours"].min()) if not quality.empty else None,
-                        "CityPulse Index": stress.get("index"),
-                        "Monitoring stations": stations,
-                    })
+                    comparison_rows.append(
+                        build_city_comparison_record(comparison_name, current, comparison_air)
+                    )
                 except Exception as exc:
                     comparison_errors.append(f"{comparison_name}: {exc}")
                 progress.progress((index + 1) / len(comparison_cities), text=f"Processed {comparison_name}")
