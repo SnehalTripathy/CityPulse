@@ -16,7 +16,8 @@ def test_walking_access_uses_osm_path_network_and_marks_disconnected_park():
         {"type":"node","id":5,"lat":12.006,"lon":77.002},
         {"type":"way","id":11,"nodes":[1,2,3],"tags":{"highway":"footway"}},
         {"type":"way","id":12,"nodes":[3,4],"tags":{"highway":"service","foot":"no"}},
-        {"type":"way","id":13,"nodes":[4,5],"tags":{"highway":"residential","access":"private"}},
+        {"type":"way","id":13,"nodes":[4,5],"tags":{"highway":"footway"}},
+        {"type":"way","id":14,"nodes":[3,4],"tags":{"highway":"residential","access":"private"}},
     ]
     access, summary = calculate_walking_access_from_osm(
         12.0,77.0,greens,elements,maximum_snap_distance_m=500
@@ -24,7 +25,7 @@ def test_walking_access_uses_osm_path_network_and_marks_disconnected_park():
     connected = access.loc[access["name"]=="Connected Park"].iloc[0]
     isolated = access.loc[access["name"]=="Isolated Park"].iloc[0]
     assert summary["status"] == "ready"
-    assert summary["walkable_ways"] == 1
+    assert summary["walkable_ways"] == 2
     assert connected["access_status"] == "Estimated walk-network route"
     assert connected["walking_network_km"] >= connected["straight_line_km"]
     assert connected["estimated_walk_minutes"] > 0
