@@ -38,7 +38,7 @@ jobs:
           if [ -f data/raw/observations.csv ]; then
             git add data/raw/observations.csv
           fi
-          if [ -f data/processed/daily_city_observations.csv ]; then
+          if [ -f data/processed/daily_city_observations.csv.gz ]; then
             git add data/processed/daily_city_observations.csv
           fi
           if ! git diff --cached --quiet; then
