@@ -137,7 +137,11 @@ def fetch_population_context(
     return {
         "city_centre": {"latitude": float(latitude), "longitude": float(longitude)},
         "data_year": int(groups.get("data_year", catchment.get("data_year", selected_year))),
-        "data_source": str(groups.get("data_source") or catchment.get("data_source") or "WorldPop Global2 R2025A, 100 m"),
+        "data_source": (
+            str(groups.get("data_source") or catchment.get("data_source"))
+            if "R2025A" in str(groups.get("data_source") or catchment.get("data_source") or "")
+            else "WorldPop Global2 R2025A, 100 m"
+        ),
         "release": "WorldPop Global2 R2025A",
         "licence": "CC BY 4.0",
         "area_km2": area_km2,
