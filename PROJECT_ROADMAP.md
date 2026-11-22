@@ -25,6 +25,7 @@ This is the working project checklist. Check an item only after implementation a
   - [x] Interactive station map with pollutant-aware detail and station selection
   - [x] Show fixed/mobile station distribution, a 5 km returned-sample coverage grid, timestamp quality, freshness, source/owner/license provenance and the OpenAQ query footprint; empty cells do not prove no monitor exists
   - [x] Screen for relative elevated clusters using at least six recent fixed stations with the same pollutant/unit; only multi-station high-value groups within 5 km are shown
+  - [x] Add bounded IDW station-footprint estimates only within the convex hull, within 3 km of a recent fixed station, and only when leave-one-out MAE beats the median baseline
   - [x] Add multi-scene Landsat Collection 2 Level-2 surface-temperature contrast, using QA-masked thermal/reflectance pixels, urban/vegetated proxy pools and ST-QA uncertainty; label as exploratory, not climatological or official UHI
   - [x] Add ESA WorldCover 2021 and OpenStreetMap green-space layers with straight-line proximity
   - [x] Add bounded OSM walk-network estimates with snap-distance/route caveats; no public park entrance or citywide network completeness is claimed
@@ -89,14 +90,15 @@ This is the working project checklist. Check an item only after implementation a
 - [x] Upgrade Zone Intelligence station map and station drill-down
 - [x] Add a transparent data freshness / coverage panel
 - [x] Add or update tests for city comparison metrics, timezone handling, air-quality freshness and global city registry
-- [x] Run CI and resolve regressions (54 tests passed in the latest verified run)
+- [x] Run CI and resolve regressions (55 tests passed in the latest verified run)
 - [ ] Verify the deployed Streamlit app where deployment status is observable
 
 ## Release quality gates
-- [x] No synthetic or silently imputed measurements in new comparison, trend, station-grid, interpolation, cluster, Landsat or OSM workflows; remaining legacy dashboard views still require a project-wide audit
+- [x] No synthetic or silently imputed measurements in new comparison, trend, station-grid, interpolation, cluster, Landsat or OSM workflows
+- [ ] Complete a project-wide audit of remaining legacy dashboard views for silent defaults and imputation
 - [x] Distinguish modelled grid-cell weather, OpenAQ station measurements, provider forecasts, experimental CityPulse outputs and spatial estimates in the new comparison/zone views
 - [x] Show timestamps, units, source provenance, station-age ranges and missing/future-data states in comparison and zone views
 - [x] Confirm city timezone handling for every country (all registry timezones validated and passed to weather requests)
-- [x] Automated tests pass (54 tests passed in GitHub Actions)
+- [x] Automated tests pass (55 tests passed in GitHub Actions)
 - [x] README accurately describes released features and limitations
 - [ ] Streamlit deployment successfully starts and core pages render
