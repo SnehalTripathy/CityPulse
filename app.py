@@ -43,7 +43,7 @@ html, body, [class*="css"] { font-family:'DM Sans',sans-serif; }
  background:
  radial-gradient(ellipse at 12% 0%, rgba(57,213,246,.13), transparent 28%),
  radial-gradient(ellipse at 88% 8%, rgba(167,139,250,.15), transparent 30%),
- radial-gradient(ellipse at 70% 90%, rgba(251,113,133,.08), transparent 28%), var(--bg);
+ radial-gradient(ellipse at 70% 90%, rgba(251,113,133,.025), transparent 24%), var(--bg);
  color:var(--text);
 }
 .block-container { padding-top:4.7rem !important; padding-bottom:3rem !important; max-width:1560px; }
