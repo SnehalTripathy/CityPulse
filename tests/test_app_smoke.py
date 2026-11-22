@@ -52,3 +52,45 @@ def test_streamlit_workspace_pages_render_when_providers_are_unavailable(monkeyp
             f"{[item.message for item in app.exception]}"
         )
         assert app.radio[0].value == page
+
+from analytics.alert_store import load_city_preferences
+
+
+def test_smart_alert_thresholds_save_and_restore_per_city_offline(monkeypatch, tmp_path):
+    """Exercise threshold controls and city-scoped preferences without provider access."""
+    monkeypatch.setattr(requests.sessions.Session, "request", _block_network_requests)
+    state_path = tmp_path / "citypulse_state.sqlite3"
+    monkeypatch.setenv("CITYPULSE_STATE_DB", str(state_path))
+
+    app = AppTest.from_file(str(APP_PATH), default_timeout=45).run(timeout=90)
+    app.radio[0].set_value("Smart Alerts & Recommendations")
+    app.run(timeout=90)
+    assert not app.exception, [item.message for item in app.exception]
+    assert len(app.slider) >= 4
+
+    selected_values = (45.0, 25.0, 85.0, 150.0)
+    for index, value in enumerate(selected_values):
+        app.slider[index].set_value(value)
+    app.button[0].click()
+    app.run(timeout=90)
+    assert not app.exception, [item.message for item in app.exception]
+
+    saved = load_city_preferences("Bengaluru", path=state_path)
+    assert (
+        saved["heat_c"],
+        saved["rainfall_mm"],
+        saved["pm25_ug_m3"],
+        saved["pm10_ug_m3"],
+    ) == selected_values
+
+    # A different city starts from its own preferences, not Bengaluru's sliders.
+    app.selectbox[1].set_value("Mumbai")
+    app.run(timeout=90)
+    assert not app.exception, [item.message for item in app.exception]
+    assert app.slider[0].value == 40.0
+
+    # Returning to Bengaluru restores its saved threshold.
+    app.selectbox[1].set_value("Bengaluru")
+    app.run(timeout=90)
+    assert not app.exception, [item.message for item in app.exception]
+    assert app.slider[0].value == 45.0
