@@ -129,6 +129,11 @@ def build_daily_observation_summary(observations: pd.DataFrame) -> pd.DataFrame:
     frame = frame.dropna(subset=["source", "city", "station", "parameter", "value", "datetime_utc"])
     if frame.empty:
         return pd.DataFrame(columns=DAILY_COLUMNS)
+    dedupe_columns = ["source", "city", "location_id", "station", "sensor_id", "parameter", "datetime_utc"]
+    frame = frame.drop_duplicates(
+        subset=[column for column in dedupe_columns if column in frame.columns],
+        keep="last",
+    )
     frame["date"] = frame["datetime_utc"].dt.floor("D")
     aggregations = {
         "median_value": ("value", "median"),
@@ -183,7 +188,7 @@ def update_daily_observation_archive(
     combined = pd.concat([existing, daily_new], ignore_index=True)
     combined["date"] = pd.to_datetime(combined["date"], errors="coerce", utc=True)
     combined = combined.dropna(subset=["date"])
-    dedupe = ["source", "city", "station", "parameter", "unit", "date"]
+    dedupe = ["source", "city", "location_id", "station", "parameter", "unit", "date"]
     combined = combined.drop_duplicates(subset=dedupe, keep="last")
     cutoff = pd.Timestamp.now(tz="UTC").floor("D") - pd.Timedelta(days=retention_days)
     combined = combined.loc[combined["date"] >= cutoff]
