@@ -122,6 +122,8 @@ def build_daily_observation_summary(observations: pd.DataFrame) -> pd.DataFrame:
     if observations.empty or not {"source", "city", "station", "parameter", "value", "unit", "datetime_utc"}.issubset(observations.columns):
         return pd.DataFrame(columns=DAILY_COLUMNS)
     frame = observations.copy()
+    if "location_id" not in frame.columns:
+        frame["location_id"] = None
     frame["value"] = pd.to_numeric(frame["value"], errors="coerce")
     frame["datetime_utc"] = pd.to_datetime(frame["datetime_utc"], errors="coerce", utc=True)
     frame = frame.dropna(subset=["source", "city", "station", "parameter", "value", "datetime_utc"])
