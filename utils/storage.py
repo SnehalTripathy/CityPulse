@@ -8,7 +8,7 @@ DATA_DIR = Path("data")
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
 OBSERVATIONS_PATH = RAW_DIR / "observations.csv"
-DAILY_OBSERVATIONS_PATH = PROCESSED_DIR / "daily_city_observations.csv"
+DAILY_OBSERVATIONS_PATH = PROCESSED_DIR / "daily_city_observations.csv.gz"
 
 
 def ensure_data_dirs() -> None:
