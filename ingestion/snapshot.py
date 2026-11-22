@@ -164,7 +164,7 @@ def build_daily_observation_summary(observations: pd.DataFrame) -> pd.DataFrame:
 
 def update_daily_observation_archive(
     observations: pd.DataFrame,
-    daily_path: str | Path = "data/processed/daily_city_observations.csv",
+    daily_path: str | Path = "data/processed/daily_city_observations.csv.gz",
     retention_days: int = 365,
 ) -> int:
     """Upsert daily medians while retaining a year of compact city history."""
@@ -193,7 +193,7 @@ def update_daily_observation_archive(
     cutoff = pd.Timestamp.now(tz="UTC").floor("D") - pd.Timedelta(days=retention_days)
     combined = combined.loc[combined["date"] >= cutoff]
     combined = combined.sort_values(["date", "city", "source", "station", "parameter"])
-    combined.to_csv(destination, index=False)
+    combined.to_csv(destination, index=False, compression="gzip" if destination.suffix == ".gz" else "infer")
     return len(combined)
 
 
