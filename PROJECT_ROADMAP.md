@@ -21,7 +21,7 @@ This is the working project checklist. Check an item only after implementation a
   - [x] Add multi-city daily trend comparison with shared UTC windows, stable station IDs, PM unit normalization, pollutant-specific observation ages and a minimum common-history gate
   - [x] Build and commit a compressed 365-day station/day archive in the scheduled collector
   - [ ] Confirm the first scheduled archive run and accumulate at least three shared observed UTC days in two or more cities (data-dependent)
-- [x] **2. Advanced Zone Intelligence — station coverage, validated spatial estimates, satellite surface-temperature analysis and park access delivered with explicit data limits**
+- [x] **2. Advanced Zone Intelligence — station coverage, validated spatial estimates, satellite surface-temperature analysis and mapped green-space context delivered with explicit data limits**
   - [x] Interactive station map with pollutant-aware detail and station selection
   - [x] Show fixed/mobile station distribution, a 5 km returned-sample coverage grid, timestamp quality, freshness, source/owner/license provenance and the OpenAQ query footprint; empty cells do not prove no monitor exists
   - [x] Screen for relative elevated clusters using at least six recent fixed stations with the same pollutant/unit; only multi-station high-value groups within 5 km are shown
