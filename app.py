@@ -82,6 +82,8 @@ p, label, .stMarkdown { color:#DCE6F7; }
 .stTabs [aria-selected="true"] { background:linear-gradient(100deg,rgba(57,213,246,.2),rgba(167,139,250,.22)); color:#FFFFFF !important; }
 .stButton button, .stDownloadButton button { border:0; border-radius:12px; color:#07111F; font-weight:800; background:linear-gradient(100deg,var(--cyan),var(--violet),var(--pink)); }
 .stButton button:hover, .stDownloadButton button:hover { filter:brightness(1.12); transform:translateY(-1px); }
+/* Fine-align the hero CTA with the visual centre of the city heading. */
+.st-key-hero_zone_intelligence { transform:translateY(6px); }
 .stSelectbox [data-baseweb="select"], .stMultiSelect [data-baseweb="select"] { border-radius:12px; }
 [data-testid="stAlert"] { border-radius:14px; border:1px solid rgba(130,160,210,.2); }
 [data-testid="stDataFrame"] { border:1px solid rgba(130,160,210,.2); border-radius:14px; overflow:hidden; }
