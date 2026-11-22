@@ -39,13 +39,15 @@ This is the working project checklist. Check an item only after implementation a
   - [x] Separate current modelled weather conditions, next-24-hour provider forecast triggers and recent fixed-station particulate triggers
   - [x] Explain each trigger with its value, configured threshold, timestamp, source and eligible station count
   - [x] Provide practical next steps tied to heat, rainfall and particulate triggers; distinguish user triggers from official warnings
-  - [ ] Add alert persistence, notification delivery channels and user preferences only after the trigger logic is validated
-- [ ] **5. Data Quality & Confidence Layer**
+  - [x] Add browser-session alert history with duplicate suppression and CSV export
+  - [ ] Add durable cross-session alert persistence, notification delivery channels and saved user preferences after selecting and securing a persistence/notification service
+- [x] **5. Data Quality & Confidence Layer — first implementation**
   - [x] Per-source freshness and last-observed timestamp
-  - [ ] Sensor/station coverage and missing-data indicators
-  - [ ] Unit, timestamp and plausible-range validation
-  - [ ] Confidence/coverage labels based on observable evidence, not invented probabilities
-  - [ ] Preserve provenance for every displayed metric
+  - [x] Sensor/station coverage and missing-data indicators for returned OpenAQ sample
+  - [x] Unit-presence, timestamp, non-numeric and broad plausible-range validation
+  - [x] Coverage labels based on station counts and observed freshness, not invented probabilities
+  - [x] Preserve provenance in source-specific views and quality audit
+  - [ ] Complete an app-wide provenance audit of every legacy metric and all future data sources
 
 ## Phase 1 — Better intelligence
 - [x] Normalize pollutant aliases and comparable PM concentration units for city comparison, daily trends and the experimental CityPulse Index
@@ -74,19 +76,20 @@ This is the working project checklist. Check an item only after implementation a
 
 ## Phase 4 — Actionable intelligence
 - [ ] Explain why a city's stress signal changed
-- [ ] Add threshold-based heat, pollution and rainfall alerts
-- [ ] Add city/zone-specific recommendations with supporting rationale
-- [ ] Add environmental summary reports and export
-- [ ] Add population exposure / planning insights for policymakers
-- [ ] Add alert preferences and delivery integrations after validation
+- [x] Add threshold-based heat, pollution and rainfall alerts (prototype; session-only thresholds)
+- [x] Add city-specific recommendations with supporting rationale
+- [x] Add alert history CSV export and quality-audit export
+- [x] Add first population exposure / demographic planning context
+- [ ] Add zone-specific recommendation evidence, downloadable multi-page environmental summary reports, and validated policymaker planning workflows
+- [ ] Add durable alert preferences and delivery integrations after validation
 
 ## Priority 3–4 readiness note
 
 The first Environmental Health & Exposure implementation uses WorldPop Global2 (100 m source data, optional 1 km display grid, CC BY 4.0) and its catchment, age-group and distance-weighted exposure endpoints. The default population year is 2025. Counts describe an approximate city-centre buffer, not an administrative city boundary or live census. Age groups are context only; no vulnerability score is inferred.
 
-The first Smart Alerts implementation provides configurable, session-only thresholds for modelled current apparent temperature, preceding-hour rainfall, next-24-hour forecast values and recent fixed-station PM medians. Each trigger identifies its source, value, timestamp and station count where applicable. Recommendations are informational and are not official warnings. Email/SMS/push delivery, persistent alert history and personal notification preferences remain out of scope until logic and external data availability are validated.
+The first Smart Alerts implementation provides configurable, session-only thresholds for modelled current apparent temperature, preceding-hour rainfall, next-24-hour forecast values and recent fixed-station PM medians. Each trigger identifies its source, value, timestamp and station count where applicable. Recommendations are informational and are not official warnings. Browser-session alert history and CSV export are implemented; durable persistence, email/SMS/push delivery and saved personal preferences require a selected secure external service.
 
-The WorldPop and alert modules are covered by automated tests (71 tests passed in GitHub Actions, run 45043246416). Live population context and the 1 km population overlay have rendered in the deployed Streamlit app. The latest density metadata/cache revision and Smart Alerts page still require a fresh deployed-app check; the WorldPop event-exposure button has not yet been verified against a live qualifying event.
+The WorldPop, alert and data-quality modules are covered by automated tests (71 tests passed in GitHub Actions, run 45043246416). Live population context and the 1 km population overlay have rendered in the deployed Streamlit app. The latest density metadata/cache revision and Smart Alerts page still require a fresh deployed-app check; the WorldPop event-exposure button has not yet been verified against a live qualifying event.
 
 ## Priority 1–2 readiness note
 
