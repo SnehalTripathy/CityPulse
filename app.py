@@ -1651,6 +1651,6 @@ else:
 
 **Weather-only signal:** If recent PM2.5/PM10 readings are missing, the composite index is withheld rather than substituting a weather-only value.
 
-**Machine learning:** Predictive models and anomaly detection will only be published after collection of adequate time-series data, baseline evaluation and leakage checks. Until then, API forecasts are clearly distinguished from model predictions.
+**Machine learning:** CityPulse trains 24-, 48- and 72-hour Random Forest models for apparent temperature, air temperature, humidity, hourly precipitation and wind using historical Open-Meteo snapshots. Separate PM2.5/PM10 models use 3-hour fixed-station medians normalized to µg/m³. Models are evaluated on a chronological holdout with a horizon embargo against persistence; each estimate is withheld unless it beats that baseline. These experimental forecasts are not official warnings or AQI forecasts. The earlier next-observation model remains as a diagnostic.
     """)
     st.markdown("**Application data timestamp (UTC):** " + datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
