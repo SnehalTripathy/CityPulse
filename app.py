@@ -1129,6 +1129,7 @@ elif page == "Environmental Health & Exposure":
             fig.update_layout(paper_bgcolor="#0B1220", plot_bgcolor="#152238", coloraxis_showscale=False)
             st.plotly_chart(fig, use_container_width=True)
 
+        st.caption("Distance bands are radial catchments around the city-centre point. Demographic groups use a 10 km polygon approximation; totals can differ slightly because the two WorldPop queries use different geometric representations.")
         st.markdown("### Demographic context")
         groups = population_context.get("demographic_groups", {})
         demographic_rows = []
