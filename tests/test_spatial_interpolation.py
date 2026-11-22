@@ -56,3 +56,15 @@ def test_surface_is_withheld_for_stale_or_incompatible_readings():
     )
     assert status == "no_matching_readings"
     assert surface.empty
+
+
+
+def test_mobile_stations_are_excluded_from_fixed_station_surface():
+    air = _station_grid()
+    air["is_mobile"] = False
+    air.loc[air.index[-1], "is_mobile"] = True
+    status, _, details = interpolate_station_surface(
+        air, "pm25", "µg/m³", now=pd.Timestamp("2026-11-22T18:00:00Z")
+    )
+    assert status == "ready"
+    assert details["station_count"] == 6
