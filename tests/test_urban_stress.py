@@ -99,3 +99,31 @@ def test_index_withholds_composite_when_rainfall_is_missing():
     assert result["index"] is None
     assert result["rain_score"] is None
     assert "Rainfall input is unavailable" in result["reason"]
+
+
+def test_projected_citypulse_index_uses_only_supplied_validated_forecasts():
+    from analytics.urban_stress import calculate_projected_urban_stress
+
+    result = calculate_projected_urban_stress(
+        {"apparent_temperature": 40.0, "precipitation": 2.0},
+        30.0,
+        50.0,
+    )
+    assert result["index"] is not None
+    assert result["heat_score"] == 100.0
+    assert result["rain_score"] == 20.0
+    assert result["air_score"] == 50.0
+    assert result["index"] == 70.5
+
+
+def test_projected_citypulse_index_withholds_missing_required_forecast_components():
+    from analytics.urban_stress import calculate_projected_urban_stress
+
+    no_rain = calculate_projected_urban_stress(
+        {"apparent_temperature": 35.0}, 20.0, None
+    )
+    no_pm = calculate_projected_urban_stress(
+        {"apparent_temperature": 35.0, "precipitation": 0.0}, None, None
+    )
+    assert no_rain["index"] is None
+    assert no_pm["index"] is None
