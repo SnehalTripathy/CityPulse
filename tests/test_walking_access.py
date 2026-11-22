@@ -29,7 +29,7 @@ def test_walking_access_uses_osm_path_network_and_marks_disconnected_park():
     assert connected["access_status"] == "Estimated walk-network route"
     assert connected["walking_network_km"] >= connected["straight_line_km"]
     assert connected["estimated_walk_minutes"] > 0
-    assert isolated["walking_network_km"] is None
+    assert pd.isna(isolated["walking_network_km"])
     assert isolated["access_status"] == "No connected route in returned network sample"
 
 
