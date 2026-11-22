@@ -41,12 +41,17 @@ def _local_timestamp_to_utc(value: str | None, timezone_name: str) -> str:
     return stamp.tz_convert("UTC").isoformat()
 
 
-def collect_snapshot(api_key: str | None = None) -> pd.DataFrame:
-    """Collect one normalized snapshot of weather and nearby air sensor readings."""
+def collect_snapshot(
+    api_key: str | None = None,
+    on_city_data=None,
+) -> pd.DataFrame:
+    """Collect normalized snapshots, optionally invoking a per-city data callback."""
     observed_at = datetime.now(timezone.utc).isoformat()
     rows: list[dict] = []
 
     for city_name, city in CITIES.items():
+        weather = pd.DataFrame()
+        air = pd.DataFrame()
         try:
             weather = fetch_forecast(city["latitude"], city["longitude"], city["timezone"])
             current = weather.attrs.get("current", {}) or {}
@@ -113,6 +118,12 @@ def collect_snapshot(api_key: str | None = None) -> pd.DataFrame:
                     "owner": measurement.get("owner"),
                     "licenses": measurement.get("licenses"),
                 })
+
+        if on_city_data is not None:
+            try:
+                on_city_data(city_name, weather, air)
+            except Exception as exc:
+                logger.exception("Per-city monitoring callback failed for %s: %s", city_name, exc)
 
     return pd.DataFrame(rows, columns=COLUMNS)
 
@@ -226,11 +237,30 @@ def append_snapshot(snapshot: pd.DataFrame, path: str | Path) -> int:
 def main() -> None:
     import os
 
+    from analytics.scheduled_monitor import (
+        deliver_scheduled_alert_batch,
+        evaluate_scheduled_city,
+    )
+
     api_key = os.getenv("OPENAQ_API_KEY")
-    snapshot = collect_snapshot(api_key)
+    new_alert_events = []
+    monitor_results = []
+
+    def monitor_city(city_name: str, weather: pd.DataFrame, air: pd.DataFrame) -> None:
+        result = evaluate_scheduled_city(city_name, weather, air)
+        monitor_results.append(result)
+        new_alert_events.extend(result["new_events"])
+
+    snapshot = collect_snapshot(api_key, on_city_data=monitor_city)
+    email_status = deliver_scheduled_alert_batch(new_alert_events)
     destination = Path("data/raw/observations.csv")
     total = append_snapshot(snapshot, destination)
-    print(f"Collected {len(snapshot)} rows; {total} unique observations stored at {destination}")
+    alert_count = sum(item["alerts_found"] for item in monitor_results)
+    print(
+        f"Collected {len(snapshot)} rows; {total} unique observations stored at {destination}. "
+        f"Scheduled monitor: {alert_count} active trigger(s), {len(new_alert_events)} new event(s), "
+        f"email={email_status}."
+    )
 
 
 if __name__ == "__main__":
