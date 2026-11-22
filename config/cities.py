@@ -862,22 +862,22 @@ CITIES = {
         "timezone": "Asia/Riyadh",
     },
     "Abu Dhabi": {
-        "country": "United Arab Emirates", "state": "Abu Dhabi Emirate",
+        "country": "UAE", "state": "Abu Dhabi Emirate",
         "latitude": 24.4539, "longitude": 54.3773,
         "timezone": "Asia/Dubai",
     },
     "Ajman": {
-        "country": "United Arab Emirates", "state": "Ajman Emirate",
+        "country": "UAE", "state": "Ajman Emirate",
         "latitude": 25.4052, "longitude": 55.5136,
         "timezone": "Asia/Dubai",
     },
     "Dubai": {
-        "country": "United Arab Emirates", "state": "Dubai Emirate",
+        "country": "UAE", "state": "Dubai Emirate",
         "latitude": 25.2048, "longitude": 55.2708,
         "timezone": "Asia/Dubai",
     },
     "Sharjah": {
-        "country": "United Arab Emirates", "state": "Sharjah Emirate",
+        "country": "UAE", "state": "Sharjah Emirate",
         "latitude": 25.3463, "longitude": 55.4209,
         "timezone": "Asia/Dubai",
     },
@@ -1208,6 +1208,6 @@ COUNTRY_CITIES = {
     "Sri Lanka": sorted([name for name, details in CITIES.items() if details["country"] == "Sri Lanka"]),
     "Switzerland": sorted([name for name, details in CITIES.items() if details["country"] == "Switzerland"]),
     "Turkey": sorted([name for name, details in CITIES.items() if details["country"] == "Turkey"]),
-    "United Arab Emirates": sorted([name for name, details in CITIES.items() if details["country"] == "United Arab Emirates"]),
+    "UAE": sorted([name for name, details in CITIES.items() if details["country"] == "UAE"]),
     "Zimbabwe": sorted([name for name, details in CITIES.items() if details["country"] == "Zimbabwe"]),
 }
