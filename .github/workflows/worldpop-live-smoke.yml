@@ -1,0 +1,27 @@
+name: WorldPop Live API Smoke Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  worldpop-live-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install smoke-check dependency
+        run: |
+          python -m pip install --upgrade pip
+          pip install "requests>=2.31,<3.0"
+      - name: Validate WorldPop endpoints across representative cities
+        run: python scripts/worldpop_live_smoke.py
