@@ -311,6 +311,7 @@ if page == "City Comparison":
     comparison_result = st.session_state.get("city_comparison_result", pd.DataFrame())
     if not comparison_result.empty:
         st.markdown("### Comparison snapshot")
+        st.caption("Weather source: Open-Meteo modelled grid-cell data. Air-quality source: OpenAQ fixed-station sensor observations. Official AQI is not supplied by the connected feeds; the CityPulse Index is a separate experimental metric.")
         st.dataframe(
             comparison_result.style.format({
                 "Temperature (°C)": "{:.1f}",
