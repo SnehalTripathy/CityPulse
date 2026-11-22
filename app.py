@@ -19,7 +19,7 @@ from analytics.comparison import build_city_comparison_record
 from analytics.trends import TREND_METRICS, build_city_trend_frame
 from analytics.zone_intelligence import build_zone_coverage, detect_observed_hotspot_clusters
 from analytics.zone_grid import build_zone_coverage_grid
-from ingestion.geo_layers import fetch_green_spaces, fetch_walking_park_access
+from ingestion.geo_layers import fetch_green_spaces
 from analytics.spatial_interpolation import interpolate_station_surface
 from ingestion.landsat_uhi import fetch_landsat_surface_temperature_analysis
 from analytics.urban_stress import calculate_urban_stress
@@ -186,10 +186,6 @@ def load_air(lat: float, lon: float, key: str | None) -> pd.DataFrame:
 @st.cache_data(ttl=86400, show_spinner=False)
 def load_green_spaces(lat: float, lon: float) -> pd.DataFrame:
     return fetch_green_spaces(lat, lon)
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def load_walking_access(lat: float, lon: float, green: pd.DataFrame):
-    return fetch_walking_park_access(lat, lon, green)
 
 @st.cache_data(ttl=604800, show_spinner=False)
 def load_landsat_analysis(lat: float, lon: float):
@@ -849,35 +845,7 @@ elif page == "Zone Intelligence":
             use_container_width=True, hide_index=True,
         )
         st.caption("OpenStreetMap is community-mapped (© OpenStreetMap contributors). Straight-line distances are measured to mapped feature centres; they are not walking routes or verified entrances. [Map data attribution](https://www.openstreetmap.org/copyright).")
-        if st.checkbox("Estimate walk-network access to mapped green spaces", value=False, key="zone_walk_access"):
-            try:
-                with st.spinner("Calculating approximate walking-network access…"):
-                    walking_access, walking_summary = load_walking_access(
-                        city["latitude"], city["longitude"], green_spaces
-                    )
-                if walking_summary.get("status") == "ready":
-                    walk_cols = st.columns(3)
-                    walk_cols[0].metric("Parks with estimated walk route", f"{walking_summary['routed_green_spaces']:,}")
-                    walk_cols[1].metric("Walk-network nodes", f"{walking_summary['network_nodes']:,}")
-                    walk_cols[2].metric("Origin snap distance", f"{walking_summary['origin_snap_distance_m']:.0f} m")
-                    st.dataframe(
-                        walking_access.style.format({
-                            "straight_line_km":"{:.2f}",
-                            "walking_network_km":"{:.2f}",
-                            "estimated_walk_minutes":"{:.1f}",
-                            "park_snap_distance_m":"{:.0f}",
-                        }),
-                        use_container_width=True, hide_index=True,
-                    )
-                    st.caption(
-                        f"Walking time uses an assumed pace of {walking_summary['assumed_walking_speed_kmh']:.1f} km/h. "
-                        "The route endpoint is the nearest mapped walk-network node to a green-space feature centre, not a verified public entrance. "
-                        "This is a bounded OSM network sample, not a complete citywide pedestrian-accessibility assessment."
-                    )
-                else:
-                    st.info(f"Walking access could not be estimated from the returned network: {walking_summary.get('status')}.")
-            except Exception as exc:
-                st.warning(f"OpenStreetMap walking-network lookup is temporarily unavailable: {exc}")
+        st.caption("Only mapped-feature proximity is shown. Network walking routes were removed because they depended on a second high-volume external map query and could imply incomplete citywide access.")
 
     st.markdown("### Landsat surface-temperature contrast")
     st.caption("CityPulse searches recent Landsat Collection 2 Level-2 scenes, masks cloud/shadow/snow/fill/water pixels, applies the USGS temperature scale factor and compares measured thermal pixels.")
