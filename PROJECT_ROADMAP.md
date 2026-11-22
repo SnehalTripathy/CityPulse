@@ -90,15 +90,15 @@ This is the working project checklist. Check an item only after implementation a
 - [x] Upgrade Zone Intelligence station map and station drill-down
 - [x] Add a transparent data freshness / coverage panel
 - [x] Add or update tests for city comparison metrics, timezone handling, air-quality freshness and global city registry
-- [x] Run CI and resolve regressions (55 tests passed in the latest verified run)
+- [x] Run CI and resolve regressions (56 tests passed in the latest verified run)
 - [ ] Verify the deployed Streamlit app where deployment status is observable
 
 ## Release quality gates
-- [x] No synthetic or silently imputed measurements in new comparison, trend, station-grid, interpolation, cluster, Landsat or OSM workflows
+- [x] No synthetic or silently imputed measurements in new comparison, trend, station-grid, interpolation, cluster, Landsat or OSM workflows; CityPulse Index is withheld when required weather, PM or rainfall inputs are missing
 - [ ] Complete a project-wide audit of remaining legacy dashboard views for silent defaults and imputation
 - [x] Distinguish modelled grid-cell weather, OpenAQ station measurements, provider forecasts, experimental CityPulse outputs and spatial estimates in the new comparison/zone views
 - [x] Show timestamps, units, source provenance, station-age ranges and missing/future-data states in comparison and zone views
 - [x] Confirm city timezone handling for every country (all registry timezones validated and passed to weather requests)
-- [x] Automated tests pass (55 tests passed in GitHub Actions)
+- [x] Automated tests pass (56 tests passed in GitHub Actions)
 - [x] README accurately describes released features and limitations
 - [ ] Streamlit deployment successfully starts and core pages render
