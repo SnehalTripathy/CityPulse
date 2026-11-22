@@ -125,8 +125,8 @@ st.sidebar.caption("Data: Open-Meteo · OpenAQ")
 st.sidebar.caption(f"Last refreshed: {datetime.now().astimezone().strftime('%d %b %Y, %H:%M')}")
 
 @st.cache_data(ttl=900, show_spinner=False)
-def load_weather(lat: float, lon: float) -> pd.DataFrame:
-    return fetch_forecast(lat, lon)
+def load_weather(lat: float, lon: float, timezone_name: str = "auto") -> pd.DataFrame:
+    return fetch_forecast(lat, lon, timezone_name)
 
 @st.cache_data(ttl=900, show_spinner=False)
 def load_air(lat: float, lon: float, key: str | None) -> pd.DataFrame:
@@ -153,7 +153,7 @@ weather_error = None
 air_error = None
 try:
     with st.spinner("Loading live weather conditions and forecast…"):
-        weather = load_weather(city["latitude"], city["longitude"])
+        weather = load_weather(city["latitude"], city["longitude"], city["timezone"])
 except Exception as exc:
     weather_error = str(exc)
 try:
