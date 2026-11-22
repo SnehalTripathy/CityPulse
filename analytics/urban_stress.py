@@ -67,8 +67,9 @@ def calculate_urban_stress(
     if pd.isna(apparent):
         return {"index": None, "reason": "Apparent-temperature data is unavailable."}
 
-    heat_score = float(((apparent - 22.0) / 18.0 * 100.0).clip(0, 100))
-    rain_score = float(((precipitation if pd.notna(precipitation) else 0.0) / 10.0 * 100.0).clip(0, 100))
+    heat_score = min(100.0, max(0.0, (float(apparent) - 22.0) / 18.0 * 100.0))
+    rainfall_value = float(precipitation) if pd.notna(precipitation) else 0.0
+    rain_score = min(100.0, max(0.0, rainfall_value / 10.0 * 100.0))
     pm = _latest_citywide_pm(air, now)
     pm_scores = [
         min(100.0, max(0.0, pm[name] / reference * 100.0))
