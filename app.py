@@ -11,6 +11,7 @@ from config.cities import CITIES
 from ingestion.weather_api import fetch_forecast
 from ingestion.openaq_api import fetch_latest_measurements
 from analytics.stress_index import add_weather_stress
+from analytics.urban_stress import calculate_urban_stress
 from utils.storage import ensure_data_dirs
 
 st.set_page_config(
@@ -79,6 +80,7 @@ except Exception as exc:
     air_error = str(exc)
 
 weather_current = weather.attrs.get("current", {}) if not weather.empty else {}
+usi = calculate_urban_stress(weather_current, air) if weather_current else {"index": None, "reason": "Current weather data is unavailable."}
 if not weather.empty:
     weather = add_weather_stress(weather)
 
@@ -112,7 +114,20 @@ if page == "Command Center":
         cols[0].metric("Temperature", f"{float(temp):.1f} °C" if pd.notna(temp) else "—")
         cols[1].metric("Relative humidity", f"{float(humidity):.0f}%" if pd.notna(humidity) else "—")
         cols[2].metric("Wind speed", f"{float(wind):.1f} km/h" if pd.notna(wind) else "—")
-        cols[3].metric("Weather stress signal", f"{current_score:.0f}/100", help="Prototype weather-only indicator, not an official city rating")
+        composite_value = usi.get("index")
+        cols[3].metric(
+            "Experimental CityPulse Index",
+            f"{composite_value:.0f}/100" if composite_value is not None else "Partial data",
+            help="Project-specific environmental signal; not the official Indian AQI or a health advisory",
+        )
+        parts = st.columns(3)
+        parts[0].metric("Heat signal", f"{usi.get('heat_score', current_score):.0f}/100")
+        parts[1].metric("Particulate signal", f"{usi['air_score']:.0f}/100" if usi.get("air_score") is not None else "Unavailable")
+        parts[2].metric("Rain signal", f"{usi.get('rain_score', 0):.0f}/100")
+        if composite_value is None:
+            st.caption(f"Composite index withheld: {usi.get('reason', 'Required data is not available.')}")
+        else:
+            st.caption("Experimental composite: 50% heat + 35% particulate signal + 15% rainfall. Based on available recent data within the 25 km search area.")
         st.markdown("### Hourly outlook")
         hourly = weather.head(24)
         fig = px.line(hourly, x="time", y=["temperature_2m", "apparent_temperature"], markers=True,
@@ -173,7 +188,9 @@ else:
 
 **Air quality:** OpenAQ API v3. CityPulse discovers nearby monitoring locations and retrieves each location’s latest sensor measurements. Nearby coverage and reporting times vary. Missing readings are not imputed.
 
-**Weather stress indicator:** A prototype heuristic derived from apparent temperature, relative humidity and precipitation. It is not an official Urban Stress Index, health assessment, or government rating. The full multi-dimensional CityPulse index will be defined and validated when suitable air-quality and precipitation observations are available.
+**Experimental CityPulse Index:** 50% heat signal + 35% particulate signal + 15% rainfall signal. The particulate signal uses the higher of the citywide median PM2.5/PM10 readings, normalized against 60 and 100 µg/m³ respectively. A reading must be no more than 48 hours old. These are project normalisation anchors, not an official AQI calculation: the CPCB AQI uses pollutant-specific breakpoints and prescribed averaging periods, while this prototype uses latest sensor readings. See the [CPCB National AQI methodology](https://airquality.cpcb.gov.in/ccr_docs/About_AQI.pdf). The CityPulse index is not an official rating or health advisory.
+
+**Weather-only signal:** If recent PM2.5/PM10 readings are missing, the composite index is withheld rather than substituting a weather-only value.
 
 **Machine learning:** Predictive models and anomaly detection will only be published after collection of adequate time-series data, baseline evaluation and leakage checks. Until then, API forecasts are clearly distinguished from model predictions.
     """)
