@@ -12,3 +12,15 @@ data/processed/*
 .DS_Store
 .pytest_cache/
 .coverage
+
+# IDE settings
+.vscode/
+.idea/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
